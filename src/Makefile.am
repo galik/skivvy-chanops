@@ -44,7 +44,7 @@ BOTLIBS = -lskivvy -ldl
 BOTFLAGS = -Wl,-E
 
 plugin_LTLIBRARIES =  \
-	skivvy-plugin-rawplug.la
+	skivvy-plugin-chanops.la
 
 # IrcBot plugins
 skivvy_plugin_chanops_la_SOURCES = plugin-chanops.cpp

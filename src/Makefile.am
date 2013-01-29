@@ -21,9 +21,9 @@
 # 
 # '-----------------------------------------------------------------*/
 
-#skivvydir = $(prefix)/include/skivvy
-plugindir = $(datadir)/skivvy/plugins
-docsdir = $(datadir)/skivvy
+plugin_includedir = $(prefix)/include/skivvy-chanops
+plugin_librarydir = $(datadir)/skivvy/plugins
+plugin_manualsdir = $(datadir)/skivvy
 
 DEF_FLAGS = \
 	-D _GLIBCXX_USE_NANOSLEEP \
@@ -43,13 +43,16 @@ BOTLIBS = -lskivvy -ldl
 # -Wl,-E is required for programs that load plugin's
 BOTFLAGS = -Wl,-E
 
-plugin_LTLIBRARIES =  \
+plugin_include_HEADERS = \
+	$(srcdir)/include/skivvy-chanops/plugin-chanops.h
+	
+plugin_library_LTLIBRARIES =  \
 	skivvy-plugin-chanops.la
 
 # IrcBot plugins
 skivvy_plugin_chanops_la_SOURCES = plugin-chanops.cpp
 skivvy_plugin_chanops_la_LDFLAGS = -module
 
-docs_DATA = $(top_srcdir)/docs/manual.text
+plugin_manuals_DATA = $(top_srcdir)/docs/chanops-manual.text
 
-extra_DIST = $(top_srcdir)/docs/manual.text
+extra_DIST = $(top_srcdir)/docs/chanops-manual.text

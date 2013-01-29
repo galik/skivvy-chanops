@@ -190,10 +190,10 @@ private:
 	// Assign each function to a group
 	str_map perms; // msg.get_user_cmd() -> G_GROUP
 
-//	void op(std::string& nick);
-//	void voice(std::string& nick);
-//	void kick(std::string& nick);
-//	void ban(std::string& nick);
+//	void op(str& nick);
+//	void voice(str& nick);
+//	void kick(str& nick);
+//	void ban(str& nick);
 
 public:
 	ChanopsIrcBotPlugin(IrcBot& bot);
@@ -209,9 +209,9 @@ public:
 
 	// INTERFACE: IrcBotPlugin
 
-	virtual std::string get_id() const _override_;
-	virtual std::string get_name() const _override_;
-	virtual std::string get_version() const _override_;
+	virtual str get_id() const _override_;
+	virtual str get_name() const _override_;
+	virtual str get_version() const _override_;
 	virtual void exit() _override_;
 
 	// INTERFACE: IrcBotMonitor

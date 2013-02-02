@@ -60,8 +60,7 @@ static const str BAN_FILE_DEFAULT = "chanops-bans.txt";
 static const str USER_FILE = "chanops.user.file";
 static const str USER_FILE_DEFAULT = "chanops-users.txt";
 
-const str GREET_JOINERS = "chanops.greet.active";
-const bool GREET_JOINERS_DEFAULT = false;
+const str GREET_JOINERS_VEC = "chanops.greet.active";
 
 const str UNGREET_FILE = "chanops.ungreet.file";
 const str UNGREET_FILE_DEFAULT = "chanops-ungreets.txt";
@@ -926,8 +925,11 @@ bool ChanopsIrcBotPlugin::join_event(const message& msg)
 	enforce_static_rules(msg.to, msg.from, msg.get_nick());
 	enforce_dynamic_rules(msg.to, msg.from, msg.get_nick());
 
-	if(bot.get(GREET_JOINERS, GREET_JOINERS_DEFAULT))
+	for(const str& chan: bot.get_vec(GREET_JOINERS_VEC))
 	{
+		if(!msg.from_channel() || msg.to != chan)
+			continue;
+
 		str_vec ungreets;
 		std::ifstream ifs(bot.getf(UNGREET_FILE, UNGREET_FILE_DEFAULT));
 
@@ -935,9 +937,13 @@ bool ChanopsIrcBotPlugin::join_event(const message& msg)
 		while(ifs >> ungreet)
 			ungreets.push_back(ungreet);
 
-		if((ungreets.empty()
-		|| stl::find(ungreets, msg.get_nick()) == ungreets.end())
-		&& msg.get_nick() != bot.nick)
+		// greet only once
+		str_set greeted = store.get_set("greeted");
+
+		if(((ungreets.empty()
+		|| stl::find(ungreets, msg.get_nick()) == ungreets.end() // deprecated
+		|| stl::find(greeted, msg.get_userhost()) == greeted.end())
+		&& msg.get_nick() != bot.nick))
 		{
 			str_vec greets = bot.get_vec(GREETINGS_VEC);
 			if(!greets.empty())
@@ -951,6 +957,7 @@ bool ChanopsIrcBotPlugin::join_event(const message& msg)
 
 				// greet only once
 				ungreets.push_back(msg.get_nick());
+				store.add("greeted", msg.get_userhost());
 
 				std::async(std::launch::async, [&,msg,greet,min_delay,max_delay]
 				{

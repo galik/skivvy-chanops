@@ -55,6 +55,8 @@ CHANOPS_GROUP(OPER);
 CHANOPS_GROUP(SUPR);
 CHANOPS_GROUP(ROOT);
 
+CHANOPS_GROUP(CUST); // custom group prefix ?
+
 // action requirements
 CHANOPS_GROUP(VOICED);
 CHANOPS_GROUP(OPPED);
@@ -179,6 +181,7 @@ private:
 	bool ban(const message& msg);
 	bool name_event(const message& msg);
 	bool join_event(const message& msg);
+	bool kick_event(const message& msg);
 	bool mode_event(const message& msg);
 	bool nick_event(const message& msg);
 	bool whoisuser_event(const message& msg);
@@ -202,6 +205,16 @@ public:
 	// Plugin API
 	bool is_userhost_logged_in(const str& userhost);
 	str get_userhost_username(const str& userhost);
+
+	enum class status
+	{
+		OK
+		, FAIL
+		, GROUP_ALREADY_EXISTS
+	};
+
+	status create_custom_group(const str& group);
+	bool add_user_to_custom_group(const str& user, const str& group);
 
 	// INTERFACE: BasicIrcBotPlugin
 

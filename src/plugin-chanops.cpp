@@ -416,18 +416,18 @@ bool ChanopsIrcBotPlugin::ban(const message& msg)
 	if(!msg.from_channel())
 		return bot.cmd_error_pm(msg, "ERROR: !ban can only be used from a channel.");
 
-	str chan = msg.to_cp;
+	str chan = msg.to;
 
 	// <nick>|<pcre>
 	if(bot.nicks[chan].count(msg.get_nick())) // ban by nick
 	{
 		store.set("ban.nick." + chan, msg.get_nick());
-		enforce_rules(msg.to_cp, msg.get_nick());
+		enforce_rules(msg.to, msg.get_nick());
 	}
 	else // ban by regex on userhost
 	{
 		store.set("ban.pcre." + chan, msg.get_user_params());
-		enforce_rules(msg.to_cp, msg.get_nick());
+		enforce_rules(msg.to, msg.get_nick());
 	}
 
 	return true;
@@ -486,7 +486,7 @@ bool ChanopsIrcBotPlugin::votekick(const message& msg)
 	if(!msg.from_channel())
 		return bot.cmd_error(msg, "You can only call a vote from a channel.");
 
-	str chan = msg.to_cp;
+	str chan = msg.to;
 
 	lock_guard lock(vote_mtx);
 
@@ -525,7 +525,7 @@ bool ChanopsIrcBotPlugin::f1(const message& msg)
 	if(!msg.from_channel())
 		return bot.cmd_error(msg, "You can only vote from a channel.");
 
-	str chan = msg.to_cp;
+	str chan = msg.to;
 	lock_guard lock(vote_mtx);
 
 	if(!vote_in_progress[chan])
@@ -551,7 +551,7 @@ bool ChanopsIrcBotPlugin::f2(const message& msg)
 	if(!msg.from_channel())
 		return bot.cmd_error(msg, "You can only vote from a channel.");
 
-	str chan = msg.to_cp;
+	str chan = msg.to;
 	lock_guard lock(vote_mtx);
 
 	if(!vote_in_progress[chan])
@@ -701,17 +701,17 @@ void ChanopsIrcBotPlugin::exit()
 void ChanopsIrcBotPlugin::event(const message& msg)
 {
 //	BUG_COMMAND(msg);
-	if(msg.cmd_cp == RPL_NAMREPLY)
+	if(msg.cmd == RPL_NAMREPLY)
 		name_event(msg);
-	else if(msg.cmd_cp == NICK)
+	else if(msg.cmd == NICK)
 		nick_event(msg);
-	else if(msg.cmd_cp == RPL_WHOISUSER || msg.cmd_cp == RPL_WHOISCHANNELS || msg.cmd_cp == RPL_WHOISOPERATOR)
+	else if(msg.cmd == RPL_WHOISUSER || msg.cmd == RPL_WHOISCHANNELS || msg.cmd == RPL_WHOISOPERATOR)
 		whoisuser_event(msg);
-	else if(msg.cmd_cp == JOIN)
+	else if(msg.cmd == JOIN)
 		join_event(msg);
-	else if(msg.cmd_cp == MODE)
+	else if(msg.cmd == MODE)
 		mode_event(msg);
-	else if(msg.cmd_cp == KICK)
+	else if(msg.cmd == KICK)
 		kick_event(msg);
 }
 
@@ -744,7 +744,7 @@ bool ChanopsIrcBotPlugin::whoisuser_event(const message& msg)
 	str skip, nick, userhost;
 
 	lock_guard lock(nicks_mtx);
-	if(siss(msg.params_cp) >> skip >> nick >> skip >> userhost)
+	if(siss(msg.params) >> skip >> nick >> skip >> userhost)
 	{
 		bug_var(userhost);
 		nicks[nick] = userhost;
@@ -779,7 +779,7 @@ bool ChanopsIrcBotPlugin::name_event(const message& msg)
 	// :dreamhack.se.quakenet.org 353 Skivvy = #openarena :Skivvy +SooKee +I4C @OAbot +Light3r +pet
 
 	str skip, chan;
-	siss iss(msg.params_cp);
+	siss iss(msg.params);
 	sgl(iss, skip, '#') >> chan;
 	chan.insert(0, "#");
 	bug_var(chan);
@@ -851,7 +851,7 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 
 	str chan, flag, user;
 
-	if(!(siss(msg.params_cp) >> chan >> flag >> user))
+	if(!(siss(msg.params) >> chan >> flag >> user))
 	{
 		log("BAD message");
 		return false;
@@ -879,7 +879,7 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 	{
 		log("THIS IS A TAKE BACK CHANNEL: " << tb_chan);
 		// did I just get ops?
-		if(msg.params_cp == tb_chan + " +o " + bot.nick)
+		if(msg.params == tb_chan + " +o " + bot.nick)
 		{
 			log("TAKEING BACH THE CHANNEL: " << tb_chan);
 			lock_guard lock(nicks_mtx);
@@ -917,7 +917,7 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 		std::istringstream(s) >> chan_preg >> who;
 		bug_var(chan_preg);
 		bug_var(who);
-		if(bot.preg_match(chan_preg, msg.to_cp, true) && bot.wild_match(user, who))
+		if(bot.preg_match(chan_preg, msg.to, true) && bot.wild_match(user, who))
 		{
 			bug("match:");
 			if(flag == "+b")
@@ -952,7 +952,7 @@ bool ChanopsIrcBotPlugin::kick_event(const message& msg)
 	// msg.reply_to()       : #skivvy-test
 
 	str who;
-	if(!(siss(msg.params_cp) >> who >> who))
+	if(!(siss(msg.params) >> who >> who))
 		return false;
 
 	str_vec responses = bot.get_vec("chanops.kick.response");
@@ -968,7 +968,7 @@ bool ChanopsIrcBotPlugin::kick_event(const message& msg)
 			if(!i || response[i - 1] != '\\')
 				response.replace(i, 1, who);
 
-	return irc->me(msg.to_cp, response);
+	return irc->me(msg.to, response);
 }
 
 bool ChanopsIrcBotPlugin::join_event(const message& msg)
@@ -977,12 +977,12 @@ bool ChanopsIrcBotPlugin::join_event(const message& msg)
 
 	// Auto OP/VOICE/MODE/bans etc..
 
-	enforce_static_rules(msg.to_cp, msg.from_cp, msg.get_nick());
-	enforce_dynamic_rules(msg.to_cp, msg.from_cp, msg.get_nick());
+	enforce_static_rules(msg.to, msg.from, msg.get_nick());
+	enforce_dynamic_rules(msg.to, msg.from, msg.get_nick());
 
 	for(const str& chan: bot.get_vec(GREET_JOINERS_VEC))
 	{
-		if(!msg.from_channel() || msg.to_cp != chan)
+		if(!msg.from_channel() || msg.to != chan)
 			continue;
 
 		str_vec ungreets;

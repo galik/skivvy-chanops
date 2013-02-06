@@ -111,8 +111,8 @@ public:
 
 //		user_t(const user_t& u): prefix(u.prefix) {}
 		user_t(const message& msg, const user_r& ur)
-		: userhost(msg.get_userhost()), user(ur.user)
-		, nick(msg.get_nick()), groups(ur.groups)
+		: userhost(msg.get_userhost_cp()), user(ur.user)
+		, nick(msg.get_nick_cp()), groups(ur.groups)
 		{}
 
 		bool operator<(const user_t& u) const { return user < u.user; }

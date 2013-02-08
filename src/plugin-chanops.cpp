@@ -764,23 +764,54 @@ str make_ban_mask(const str& userhost)
 bool ChanopsIrcBotPlugin::whoisuser_event(const message& msg)
 {
 	BUG_COMMAND(msg);
-	// RPL_WHOISUSER | RPL_WHOISCHANNELS | RPL_WHOISOPERATOR
-
-	// -----------------------------------------------------
-	//                  from: dreamhack.se.quakenet.org
-	//                   cmd: 311
-	//                params: Skivvy00 SooKee ~SooKee SooKee.users.quakenet.org *
-	//                    to: Skivvy00
-	//                  text: SooKee
-	// msg.from_channel()   : false
-	// msg.get_nick()       : dreamhack.se.quakenet.org
-	// msg.get_user()       : dreamhack.se.quakenet.org
-	// msg.get_host()       : dreamhack.se.quakenet.org
-	// msg.get_userhost()   : dreamhack.se.quakenet.org
-	// msg.get_user_cmd()   : SooKee
-	// msg.get_user_params():
-	// msg.reply_to()       : dreamhack.se.quakenet.org
-	// -----------------------------------------------------
+	// RPL_WHOISUSER
+	//---------------------------------------------------
+	//                  line: :dreamhack.se.quakenet.org 311 Skivvy SooKee ~SooKee SooKee.users.quakenet.org * :SooKee
+	//                prefix: dreamhack.se.quakenet.org
+	//               command: 311
+	//                params:  Skivvy SooKee ~SooKee SooKee.users.quakenet.org * :SooKee
+	// get_servername()     : dreamhack.se.quakenet.org
+	// get_nickname()       :
+	// get_user()           :
+	// get_host()           :
+	// param                : Skivvy
+	// param                : SooKee
+	// param                : ~SooKee
+	// param                : SooKee.users.quakenet.org
+	// param                : *
+	// param                : SooKee
+	// middle               : Skivvy
+	// middle               : SooKee
+	// middle               : ~SooKee
+	// middle               : SooKee.users.quakenet.org
+	// middle               : *
+	// trailing             : SooKee
+	// get_nick()           :
+	// get_chan()           :
+	// get_user_cmd()       : SooKee
+	// get_user_params()    :
+	//---------------------------------------------------
+	// RPL_WHOISCHANNELS
+	//---------------------------------------------------
+	//                  line: :dreamhack.se.quakenet.org 319 Skivvy SooKee :@#skivvy @#openarenahelp +#openarena @#omfg
+	//                prefix: dreamhack.se.quakenet.org
+	//               command: 319
+	//                params:  Skivvy SooKee :@#skivvy @#openarenahelp +#openarena @#omfg
+	// get_servername()     : dreamhack.se.quakenet.org
+	// get_nickname()       :
+	// get_user()           :
+	// get_host()           :
+	// param                : Skivvy
+	// param                : SooKee
+	// param                : @#skivvy @#openarenahelp +#openarena @#omfg
+	// middle               : Skivvy
+	// middle               : SooKee
+	// trailing             : @#skivvy @#openarenahelp +#openarena @#omfg
+	// get_nick()           :
+	// get_chan()           :
+	// get_user_cmd()       : @#skivvy
+	// get_user_params()    : @#openarenahelp +#openarena @#omfg
+	//---------------------------------------------------
 
 	str skip, userhost;
 
@@ -803,9 +834,13 @@ bool ChanopsIrcBotPlugin::whoisuser_event(const message& msg)
 
 		if(!tb_chan.empty())
 		{
-			if(tb_ops.count(params[1]))
-				irc->mode(tb_chan, " +b *!*@" + params[3]);
-			kickban(tb_chan, params[1]);
+			lock_guard lock(chanops_mtx);
+			if(chanops[tb_chan])
+			{
+				if(tb_ops.count(params[1]))
+					irc->mode(tb_chan, " +b *!*@" + params[3]);
+				kickban(tb_chan, params[1]);
+			}
 		}
 
 		{
@@ -820,6 +855,29 @@ bool ChanopsIrcBotPlugin::whoisuser_event(const message& msg)
 bool ChanopsIrcBotPlugin::name_event(const message& msg)
 {
 	BUG_COMMAND(msg);
+	// RPL_NAMREPLY
+	//---------------------------------------------------
+	//                  line: :dreamhack.se.quakenet.org 353 Skivvy = #openarenahelp :Skivvy +wing_9 @ali3n +capo @Pixelized @SooKee +pet @Q
+	//                prefix: dreamhack.se.quakenet.org
+	//               command: 353
+	//                params:  Skivvy = #openarenahelp :Skivvy  +wing_9 @ali3n +capo @Pixelized @SooKee +pet @Q
+	// get_servername()     : dreamhack.se.quakenet.org
+	// get_nickname()       :
+	// get_user()           :
+	// get_host()           :
+	// param                : Skivvy
+	// param                : =
+	// param                : #openarenahelp
+	// param                : Skivvy  +wing_9 @ali3n +capo @Pixelized @SooKee +pet @Q
+	// middle               : Skivvy
+	// middle               : =
+	// middle               : #openarenahelp
+	// trailing             : Skivvy  +wing_9 @ali3n +capo @Pixelized @SooKee +pet @Q
+	// get_nick()           :
+	// get_chan()           : #openarenahelp
+	// get_user_cmd()       : Skivvy
+	// get_user_params()    :  +wing_9 @ali3n +capo @Pixelized @SooKee +pet @Q
+	//---------------------------------------------------
 
 	// :dreamhack.se.quakenet.org 353 Skivvy = #openarena :Skivvy +SooKee +I4C @OAbot +Light3r +pet
 
@@ -871,22 +929,27 @@ std::future<void> fut;
 bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 {
 	BUG_COMMAND(msg);
-
-	// -----------------------------------------------------
-	//                  from: SooKee!~SooKee@SooKee.users.quakenet.org
-	//                   cmd: MODE
-	//                params: #skivvy-test +b *!*Skivvy0x@*.users.quakenet.org
-	//                    to: #skivvy-test
-	//                  text: End of /NAMES list.
-	// msg.from_channel()   : true
-	// msg.get_nick()       : SooKee
-	// msg.get_user()       : ~SooKee
-	// msg.get_host()       : SooKee.users.quakenet.org
-	// msg.get_userhost()   : ~SooKee@SooKee.users.quakenet.org
-	// msg.get_user_cmd()   : End
-	// msg.get_user_params(): of /NAMES list.
-	// msg.reply_to()       : #skivvy-test
-	// -----------------------------------------------------
+	//---------------------------------------------------
+	//                  line: :Q!TheQBot@CServe.quakenet.org MODE #openarenahelp +v Sergei
+	//                prefix: Q!TheQBot@CServe.quakenet.org
+	//               command: MODE
+	//                params:  #openarenahelp +v Sergei
+	// get_servername()     :
+	// get_nickname()       : Q
+	// get_user()           : TheQBot
+	// get_host()           : CServe.quakenet.org
+	// param                : #openarenahelp
+	// param                : +v
+	// param                : Sergei
+	// middle               : #openarenahelp
+	// middle               : +v
+	// middle               : Sergei
+	// trailing             :
+	// get_nick()           : Q
+	// get_chan()           : #openarenahelp
+	// get_user_cmd()       :
+	// get_user_params()    :
+	//---------------------------------------------------
 
 	// :SooKee!~SooKee@SooKee.users.quakenet.org MODE #skivvy-test +b *!*Skivvy@*.users.quakenet.org
 
@@ -895,21 +958,6 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 	str_vec params = msg.get_params();
 	if(params.size() > 2) // could be ban/kick/voice etc...
 	{
-		//     from: Q!TheQBot@CServe.quakenet.org
-		//      cmd: MODE
-		//   params: #skivvy-admin +o Skivvy00
-		//       to: #skivvy-admin
-		//     text: End of /NAMES list.
-		// msg.from_channel()   : true
-		// msg.get_nick()       : Q
-		// msg.get_user()       : TheQBot
-		// msg.get_host()       : CServe.quakenet.org
-		// msg.get_userhost()   : TheQBot@CServe.quakenet.org
-		// msg.get_user_cmd()   : End
-		// msg.get_user_params(): of /NAMES list.
-		// msg.reply_to()       : #skivvy-admin
-		// -----------------------------------------------------
-
 		chan = params[0];
 		flag = params[1];
 		user = params[2];
@@ -917,56 +965,61 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 		str tb_chan = bot.get("chanops.takover.chan");
 		bug_var(tb_chan);
 
-		// did I just get ops?
-		// Command: MODE
-		// Parameters: <channel> *( ( "-" / "+" ) *<modes> *<modeparams> )
-
-		// +abc NickA NickB NickC
-		str_vec params = msg.get_params();
-		for(siz i = 1; i < params.size(); ++i)
+		bool ops = false;
 		{
-			if(params[i].empty())
-				continue;
-			if(params[i][0] != '+' && params[i][0] != '-')
-				continue;
-			siz f;
-			for(f = 1; f < params[i].size(); ++f)
-				if(params[i][f] == 'o')
-					if(i + f < params.size() && params[i + f] == bot.nick)
-						chanops[chan] = (params[i][0] == '+');
-			i += f;
-		}
-
-		if(chanops[chan])
-		{
-			if(chan == tb_chan) // take back channel?
-			{
-				log("TAKEING BACH THE CHANNEL: " << tb_chan);
-				lock_guard lock(nicks_mtx);
-
-				for(const str& nick: tb_ops)
-					irc->kick({chan}, {nick}, bot.get(TAKEOVER_KICK_MSG, TAKEOVER_KICK_MSG_DEFAULT));
-
-				// ban who you need to ban
-				for(const str& mask: bot.get_vec(CHANOPS_TAKEOVER_BAN))
-					irc->mode(chan, " +b " + mask);
-
-				// ban all ops nicks
-				for(const str& nick: tb_ops)
-					irc->mode(chan, " +b " + nick + "!*@*");
-
-				// open channel
-				irc->mode(chan, " -i");
-				irc->mode(chan, " -p");
-
-				if(bot.has(CHANOPS_TAKEOVER_KEY))
-					irc->mode(chan, " -k " + bot.get(CHANOPS_TAKEOVER_KEY));
-			}
 			lock_guard lock(chanops_mtx);
+
+			// did I just get ops?
+			// Command: MODE
+			// Parameters: <channel> *( ( "-" / "+" ) *<modes> *<modeparams> )
+
+			// +abc NickA NickB NickC
+			str_vec params = msg.get_params();
+			for(siz i = 1; i < params.size(); ++i)
+			{
+				if(params[i].empty())
+					continue;
+				if(params[i][0] != '+' && params[i][0] != '-')
+					continue;
+				siz f;
+				for(f = 1; f < params[i].size(); ++f)
+					if(params[i][f] == 'o')
+						if(i + f < params.size() && params[i + f] == bot.nick)
+							ops = chanops[chan] = (params[i][0] == '+');
+				i += f;
+			}
+			ops = chanops[chan];
 		}
-		else if(flag =="o" && user == bot.nick)
+
+		// .-----------------------------------------.
+		// | Everything past this point requires ops |
+		// '-----------------------------------------'
+
+		if(ops)
+			return true;
+
+		if(chan == tb_chan) // take back channel?
 		{
-			chanops[chan] = false;
+			log("TAKEING BACH THE CHANNEL: " << tb_chan);
+			lock_guard lock(nicks_mtx);
+
+			for(const str& nick: tb_ops)
+				irc->kick({chan}, {nick}, bot.get(TAKEOVER_KICK_MSG, TAKEOVER_KICK_MSG_DEFAULT));
+
+			// ban who you need to ban
+			for(const str& mask: bot.get_vec(CHANOPS_TAKEOVER_BAN))
+				irc->mode(chan, " +b " + mask);
+
+			// ban all ops nicks
+			for(const str& nick: tb_ops)
+				irc->mode(chan, " +b " + nick + "!*@*");
+
+			// open channel
+			irc->mode(chan, " -i");
+			irc->mode(chan, " -p");
+
+			if(bot.has(CHANOPS_TAKEOVER_KEY))
+				irc->mode(chan, " -k " + bot.get(CHANOPS_TAKEOVER_KEY));
 		}
 
 		bug_var(chan);
@@ -1045,6 +1098,25 @@ bool ChanopsIrcBotPlugin::kick_event(const message& msg)
 bool ChanopsIrcBotPlugin::join_event(const message& msg)
 {
 	BUG_COMMAND(msg);
+	// ===============================
+	// JOIN: JOIN
+	// -------------------------------
+	//                  line: :Sergei!~Tod@supeRSergei.users.quakenet.org JOIN #openarenahelp
+	//                prefix: Sergei!~Tod@supeRSergei.users.quakenet.org
+	//               command: JOIN
+	//                params:  #openarenahelp
+	// get_servername()     :
+	// get_nickname()       : Sergei
+	// get_user()           : ~Tod
+	// get_host()           : supeRSergei.users.quakenet.org
+	// param                : #openarenahelp
+	// middle               : #openarenahelp
+	// trailing             :
+	// get_nick()           : Sergei
+	// get_chan()           : #openarenahelp
+	// get_user_cmd()       :
+	// get_user_params()    :
+	// -------------------------------
 
 	// Auto OP/VOICE/MODE/bans etc..
 	enforce_static_rules(msg.get_chan(), msg.get_userhost(), msg.get_nick());

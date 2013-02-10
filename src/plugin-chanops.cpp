@@ -1127,20 +1127,11 @@ bool ChanopsIrcBotPlugin::join_event(const message& msg)
 		if(!msg.from_channel() || msg.get_chan() != chan)
 			continue;
 
-		str_vec ungreets;
-		std::ifstream ifs(bot.getf(UNGREET_FILE, UNGREET_FILE_DEFAULT));
-
-		str ungreet;
-		while(ifs >> ungreet)
-			ungreets.push_back(ungreet);
-
-		// greet only once
 		str_set greeted = store.get_set("greeted");
 
-		if(((ungreets.empty()
-		|| stl::find(ungreets, msg.get_nick()) == ungreets.end() // deprecated
-		|| stl::find(greeted, msg.get_userhost()) == greeted.end())
-		&& msg.get_nick() != bot.nick))
+		// greet only once
+		if(stl::find(greeted, msg.get_userhost()) == greeted.end()
+		&& msg.get_nick() != bot.nick)
 		{
 			str_vec greets = bot.get_vec(GREETINGS_VEC);
 			if(!greets.empty())
@@ -1153,7 +1144,6 @@ bool ChanopsIrcBotPlugin::join_event(const message& msg)
 					greet.replace(pos, 1, msg.get_nick());
 
 				// greet only once
-				ungreets.push_back(msg.get_nick());
 				store.add("greeted", msg.get_userhost());
 
 				std::async(std::launch::async, [&,msg,greet,min_delay,max_delay]

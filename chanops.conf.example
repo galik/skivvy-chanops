@@ -1,0 +1,56 @@
+# Initial user to ensure is present
+chanops.init.user: <username> <password> <email> USER, OPER, SUPR, ROOT
+
+#chanops.user.file: chanops-users.txt
+#chanops.ban.file: chanops-bans.txt
+
+# Greetings (* is replaced by the nick)
+chanops.greet.active: #skivvy
+chanops.greet.active: #skivvy-test
+chanops.greet: Hello *. !help for commands list and !help <command> for command info
+chanops.greet: Hi *, how are you today? !help for commands list and !help <command> for command info
+chanops.greet: Welcome *. !help for commands list and !help <command> for command info
+chanops.greet: Howdy *, fancy meeting you here! !help for commands list and !help <command> for command info
+chanops.greet: Yo! * in da house! !help for commands list and !help <command> for command info
+chanops.greet: Good to see you *. !help for commands list and !help <command> for command info
+chanops.greet: Hello *, so glad you came. !help for commands list and !help <command> for command info
+chanops.greet.delay.min: 3; // seconds
+chanops.greet.delay.max: 16; // seconds
+
+chanops.kick.response: 01waves bye bye to * :P
+chanops.kick.response: 01laugh's at * \*\*\*
+
+// Majax!~dev@majax.xt-creations.fr
+chanops.kick: #openarenahelp ~dev@majax.xt-creations.fr Drunk in charge of ops.
+
+//chanops.pcre.op: #skivvy 
+
+// ~gb@78-62-146-251.static.zebra.lt
+chanops.wild.op: #skivvy* *!*SooKee@SooKee.users.quakenet.org
+chanops.wild.op: #skivvy* *!*Skivvy@Skivvy.users.quakenet.org
+
+chanops.wild.op: #openarenahelp *!*SooKee@SooKee.users.quakenet.org
+chanops.wild.protect: #openarenahelp *!*SooKee@SooKee.users.quakenet.org
+
+//chanops.pcre.kick: *!*die@MH-ESR1-72-49-176-193.fuse.net
+#chanops.pcre.kick: #openarenahelp .*?die@\.*?\.fuse\.net // jewjitsu
+chanops.pcre.kick: #openarenahelp .*?Hitler@.*?\.ip\.secureserver\.net
+
+#chanops.wild.kick: #openarenahelp *!*die@*.fuse.net // jewjitsu
+#chanops.wild.kick: #openarenahelp *!*Hitler@*.ip.secureserver.net
+
+// To recover a channel if this bot has auto-op
+#chanops.takover.chan: #openarenahelp
+
+// who to deop first
+#chanops.takover.deop: Hit|er
+#chanops.takover.deop: Jewjitsu
+
+// then the bans
+#chanops.takover.ban: *!*@*.secureserver.net
+#chanops.takover.ban: *!*@*.fuse.net
+#chanops.takover.ban: *!*dots@*
+#chanops.takover.ban: *!*Omicr0n@*
+
+// if we know the channel key
+#chanops.takeover.key: !W%*#&$%#$*&*#%

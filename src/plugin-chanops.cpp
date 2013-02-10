@@ -1055,20 +1055,26 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 bool ChanopsIrcBotPlugin::kick_event(const message& msg)
 {
 	BUG_COMMAND(msg);
-	//                  line: :SooKee!~SooKee@SooKee.users.quakenet.org KICK #skivvy-test Monixa :Monixa
-	//                  from: SooKee!~SooKee@SooKee.users.quakenet.org
-	//                   cmd: KICK
-	//                params: #skivvy-test Monixa
-	//                    to: #skivvy-test
-	//                  text: Reason for kick
-	// msg.from_channel()   : true
-	// msg.get_nick()       : SooKee
-	// msg.get_user()       : ~SooKee
-	// msg.get_host()       : SooKee.users.quakenet.org
-	// msg.get_userhost()   : ~SooKee@SooKee.users.quakenet.org
-	// msg.get_user_cmd()   : Monixa
-	// msg.get_user_params():
-	// msg.reply_to()       : #skivvy-test
+	//---------------------------------------------------
+	//                  line: :SooKee!~SooKee@SooKee.users.quakenet.org KICK #skivvy Skivvy :Skivvy
+	//                prefix: SooKee!~SooKee@SooKee.users.quakenet.org
+	//               command: KICK
+	//                params:  #skivvy Skivvy :Skivvy
+	// get_servername()     :
+	// get_nickname()       : SooKee
+	// get_user()           : ~SooKee
+	// get_host()           : SooKee.users.quakenet.org
+	// param                : #skivvy
+	// param                : Skivvy
+	// param                : Skivvy
+	// middle               : #skivvy
+	// middle               : Skivvy
+	// trailing             : Skivvy
+	// get_nick()           : SooKee
+	// get_chan()           : #skivvy
+	// get_user_cmd()       : Skivvy
+	// get_user_params()    :
+	//---------------------------------------------------
 
 	str_vec params = msg.get_params();
 	if(params.size() < 2)
@@ -1077,20 +1083,29 @@ bool ChanopsIrcBotPlugin::kick_event(const message& msg)
 		return false;
 	}
 
+	str chan = params[0];
 	str who = params[1];
+
+	if(who == bot.nick && bot.get("chanops.kick.rejoin", false))
+		irc->join(chan);
 
 	str_vec responses = bot.get_vec("chanops.kick.response");
 	if(responses.empty())
 		return true;
 
-	str response = responses[rand_int(0, response.size() - 1)];
-	if(response.empty())
-		return true;
+	siz idx = rand_int(0, responses.size() - 1);
+	bug_var(idx);
+
+	if(idx >= responses.size())
+		return false;
+
+	str response = responses[idx];
+	bug_var(response);
 
 	for(siz i = 0; i < response.size(); ++i)
 		if(response[i] == '*')
 			if(!i || response[i - 1] != '\\')
-				response.replace(i, 1, who);
+				{ response.replace(i, 1, who); i += who.size() - 1; }
 
 	return irc->me(msg.get_chan(), response);
 }

@@ -570,6 +570,7 @@ bool ChanopsIrcBotPlugin::tell(const message& msg)
 		+ " " + text);
 
 	bot.fc_reply(msg, prompt + nick + " will be told when he next speaks.");
+	return true;
 }
 
 bool ChanopsIrcBotPlugin::reclaim(const message& msg)

@@ -985,7 +985,7 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 				for(f = 1; f < params[i].size(); ++f)
 					if(params[i][f] == 'o')
 						if(i + f < params.size() && params[i + f] == bot.nick)
-							ops = chanops[chan] = (params[i][0] == '+');
+							ops = (chanops[chan] = (params[i][0] == '+'));
 				i += f;
 			}
 			ops = chanops[chan];

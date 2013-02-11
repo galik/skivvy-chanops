@@ -185,6 +185,8 @@ private:
 	bool list_users(const message& msg);
 	bool ban(const message& msg);
 	bool seen(const message& msg);
+	bool tell(const message& msg);
+	bool talk_event(const message& msg);
 	bool name_event(const message& msg);
 	bool join_event(const message& msg);
 	bool kick_event(const message& msg);

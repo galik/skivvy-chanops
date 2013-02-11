@@ -527,6 +527,51 @@ bool ChanopsIrcBotPlugin::seen(const message& msg)
 	return true;
 }
 
+bool ChanopsIrcBotPlugin::tell(const message& msg)
+{
+	BUG_COMMAND(msg);
+	//---------------------------------------------------
+	//                  line: :SooKee!angelic4@192.168.0.54 PRIVMSG #skivvy :!ban Monixa
+	//                prefix: SooKee!angelic4@192.168.0.54
+	//               command: PRIVMSG
+	//                params:  #skivvy :!seen Monixa
+	// get_servername()     :
+	// get_nickname()       : SooKee
+	// get_user()           : angelic4
+	// get_host()           : 192.168.0.54
+	// param                : #skivvy
+	// param                : !ban Monixa
+	// middle               : #skivvy
+	// trailing             : !ban Monixa
+	// get_nick()           : SooKee
+	// get_chan()           : #skivvy
+	//---------------------------------------------------
+
+	static const str prompt = IRC_BOLD + IRC_COLOR + IRC_Green + "tell"
+		+ IRC_COLOR + IRC_Black + ": " + IRC_NORMAL;
+
+	if(!permit(msg))
+		return false;
+
+	str nickname = msg.get_nickname();
+	str userhost = msg.get_userhost();
+	str chan = msg.get_chan();
+	str nick, text; // who & what to tall
+
+	siss iss(msg.get_user_params());
+	if(!ios::getstring(iss >> nick >> std::ws, text))
+	{
+		log("ERROR: chanops: Bad tell message: " << msg.line);
+		return false;
+	}
+
+	if(!nickname.empty() && !userhost.empty())
+		store.set("tell." + nick, nickname + " " + chan + " " + std::to_string(std::time(0))
+		+ " " + text);
+
+	bot.fc_reply(msg, prompt + nick + " will be told when he next speaks.");
+}
+
 bool ChanopsIrcBotPlugin::reclaim(const message& msg)
 {
 	BUG_COMMAND(msg);
@@ -702,6 +747,7 @@ bool ChanopsIrcBotPlugin::initialize()
 		, {"!ban", G_OPER}
 		, {"!votekick", G_OPER}
 		, {"!seen", G_ANY}
+		, {"!tell", G_ANY}
 	};
 
 	// chanops.init.user: <user> <pass> <PERM> *( "," <PERM> )
@@ -778,6 +824,12 @@ bool ChanopsIrcBotPlugin::initialize()
 	});
 	add
 	({
+		"!tell"
+		, "!tell <nick> <message> - Tell someone somthing after they next speak in channel."
+		, [&](const message& msg){ tell(msg); }
+	});
+	add
+	({
 		"!ban"
 		, "!ban <nick>|<regex> - ban either a registered user OR a regex match on userhost."
 		, [&](const message& msg){ ban(msg); }
@@ -813,11 +865,9 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 	if(!chan.empty())
 		enforce_rules(chan, nickname);
 
-	if(msg.command == PRIVMSG && !nickname.empty() && !chan.empty())
-		store.set("seen." + nickname, chan + " " + std::to_string(std::time(0))
-		+ " " + msg.get_trailing());
-
-	if(msg.command == RPL_NAMREPLY)
+	if(msg.command == PRIVMSG)
+		talk_event(msg);
+	else if(msg.command == RPL_NAMREPLY)
 		name_event(msg);
 	else if(msg.command == NICK)
 		nick_event(msg);
@@ -829,6 +879,52 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 		mode_event(msg);
 	else if(msg.command == KICK)
 		kick_event(msg);
+}
+
+bool ChanopsIrcBotPlugin::talk_event(const message& msg)
+{
+	str nickname = msg.get_nickname();
+	str userhost = msg.get_userhost();
+	str chan = msg.get_chan();
+
+	if(!nickname.empty() && !chan.empty())
+		store.set("seen." + nickname, chan + " " + std::to_string(std::time(0))
+		+ " " + msg.get_trailing());
+
+	// !tell
+
+	if(store.has("tell." + nickname))
+	{
+		str info = store.get("tell." + nickname);
+		time_t utime;
+		str nick, chan, text;
+		if(!sgl(siss(info) >> nick >> chan >> utime >> std::ws, text))
+		{
+			log("ERROR: chnops: broken tell record in store: " << info);
+			return true;
+		}
+
+		if(chan != msg.get_chan())
+			return true;
+
+		static const str prompt = IRC_BOLD + IRC_COLOR + IRC_Hot_Pink + "tell"
+			+ IRC_COLOR + IRC_Black + ": " + IRC_NORMAL;
+
+		soss oss;
+		print_duration(st_clk::now() - st_clk::from_time_t(utime), oss);
+
+		str time = oss.str();
+		trim(time);
+		bot.fc_reply(msg, prompt + nickname + ": " + IRC_BOLD + nick
+			+ IRC_NORMAL + " left you a message "
+			+ IRC_BOLD + time
+			+ IRC_NORMAL+ " ago: \""
+			+ IRC_BOLD + text
+			+ IRC_NORMAL + "\"");
+		store.clear("tell." + nickname);
+	}
+
+	return true;
 }
 
 bool ChanopsIrcBotPlugin::nick_event(const message& msg)

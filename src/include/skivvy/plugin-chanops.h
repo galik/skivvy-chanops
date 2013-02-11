@@ -55,6 +55,8 @@ CHANOPS_GROUP(OPER);
 CHANOPS_GROUP(SUPR);
 CHANOPS_GROUP(ROOT);
 
+static const str G_ANY = "*";
+
 CHANOPS_GROUP(CUST); // custom group prefix ?
 
 // action requirements
@@ -182,6 +184,7 @@ private:
 	 */
 	bool list_users(const message& msg);
 	bool ban(const message& msg);
+	bool seen(const message& msg);
 	bool name_event(const message& msg);
 	bool join_event(const message& msg);
 	bool kick_event(const message& msg);

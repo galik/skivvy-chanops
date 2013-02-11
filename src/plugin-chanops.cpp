@@ -32,6 +32,7 @@ http://www.gnu.org/licenses/gpl-2.0.html
 
 #include <fstream>
 #include <sstream>
+#include <chrono>
 
 #include <skivvy/logrep.h>
 #include <skivvy/stl.h>
@@ -146,7 +147,7 @@ ChanopsIrcBotPlugin::~ChanopsIrcBotPlugin() {}
 
 bool ChanopsIrcBotPlugin::permit(const message& msg)
 {
-	BUG_COMMAND(msg);
+//	BUG_COMMAND(msg);
 
 	const str& group = perms[msg.get_user_cmd()];
 
@@ -155,7 +156,7 @@ bool ChanopsIrcBotPlugin::permit(const message& msg)
 		return false;
 
 	// anyone can call
-	if(group == "*")
+	if(group == G_ANY)
 		return true;
 
 	bool in = false;
@@ -450,6 +451,82 @@ bool ChanopsIrcBotPlugin::ban(const message& msg)
 	return true;
 }
 
+template<typename Rep, typename Period>
+void print_duration(std::chrono::duration<Rep, Period> t, std::ostream& os)
+{
+//    assert(0<=t.count() && "t must be >= 0");
+
+	// approximate because a day doesn't have a fixed length
+	typedef std::chrono::duration<int, std::ratio<60 * 60 * 24>> days;
+
+	auto d = std::chrono::duration_cast < days > (t);
+	auto h = std::chrono::duration_cast < std::chrono::hours > (t - d);
+	auto m = std::chrono::duration_cast < std::chrono::minutes > (t - d - h);
+	auto s = std::chrono::duration_cast < std::chrono::seconds > (t - d - h - m);
+	if(t >= days(1))
+		os << d.count() << "d ";
+	if(t >= std::chrono::hours(1))
+		os << h.count() << "h ";
+	if(t >= std::chrono::minutes(1))
+		os << m.count() << "m ";
+	os << s.count() << "s";
+}
+
+bool ChanopsIrcBotPlugin::seen(const message& msg)
+{
+	BUG_COMMAND(msg);
+	//---------------------------------------------------
+	//                  line: :SooKee!angelic4@192.168.0.54 PRIVMSG #skivvy :!ban Monixa
+	//                prefix: SooKee!angelic4@192.168.0.54
+	//               command: PRIVMSG
+	//                params:  #skivvy :!seen Monixa
+	// get_servername()     :
+	// get_nickname()       : SooKee
+	// get_user()           : angelic4
+	// get_host()           : 192.168.0.54
+	// param                : #skivvy
+	// param                : !ban Monixa
+	// middle               : #skivvy
+	// trailing             : !ban Monixa
+	// get_nick()           : SooKee
+	// get_chan()           : #skivvy
+	//---------------------------------------------------
+
+	static const str prompt = IRC_BOLD + IRC_COLOR + IRC_Yellow + "seen"
+		+ IRC_COLOR + IRC_Black + ": " + IRC_NORMAL;
+
+	if(!permit(msg))
+		return false;
+
+	str nick = msg.get_user_params();
+	str info = store.get("seen." + nick);
+	bug_var(info);
+
+	std::time_t utime;
+	str chan, text;
+	if(!sgl(siss(info) >> chan >> utime >> std::ws, text))
+	{
+		bot.fc_reply(msg, prompt + "Nick " + nick + " has not been seen.");
+		return true;
+	}
+
+	soss oss;
+	print_duration(st_clk::now() - st_clk::from_time_t(utime), oss);
+
+	str time = oss.str();
+	trim(time);
+	bot.fc_reply(msg, prompt + IRC_BOLD + nick
+		+ IRC_NORMAL + " was last seen "
+		+ IRC_BOLD + time
+		+ IRC_NORMAL+ " ago in "
+		+ IRC_BOLD + chan
+		+ IRC_NORMAL + " saying: \""
+		+ IRC_BOLD + text
+		+ IRC_NORMAL + "\"");
+
+	return true;
+}
+
 bool ChanopsIrcBotPlugin::reclaim(const message& msg)
 {
 	BUG_COMMAND(msg);
@@ -624,6 +701,7 @@ bool ChanopsIrcBotPlugin::initialize()
 		, {"!reclaim", G_USER}
 		, {"!ban", G_OPER}
 		, {"!votekick", G_OPER}
+		, {"!seen", G_ANY}
 	};
 
 	// chanops.init.user: <user> <pass> <PERM> *( "," <PERM> )
@@ -694,6 +772,12 @@ bool ChanopsIrcBotPlugin::initialize()
 	});
 	add
 	({
+		"!seen"
+		, "!seen <nick> - When did <nick> last say something?"
+		, [&](const message& msg){ seen(msg); }
+	});
+	add
+	({
 		"!ban"
 		, "!ban <nick>|<regex> - ban either a registered user OR a regex match on userhost."
 		, [&](const message& msg){ ban(msg); }
@@ -728,6 +812,10 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 	str chan = msg.get_chan();
 	if(!chan.empty())
 		enforce_rules(chan, nickname);
+
+	if(msg.command == PRIVMSG && !nickname.empty() && !chan.empty())
+		store.set("seen." + nickname, chan + " " + std::to_string(std::time(0))
+		+ " " + msg.get_trailing());
 
 	if(msg.command == RPL_NAMREPLY)
 		name_event(msg);

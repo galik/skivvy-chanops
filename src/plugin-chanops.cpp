@@ -1074,15 +1074,15 @@ bool ChanopsIrcBotPlugin::name_event(const message& msg)
 	str nick;
 
 	siss iss(msg.get_trailing());
-	iss >> nick; // ignogre my nick
-
-	bug_var(nick);
 
 	lock_guard lock(nicks_mtx);
 	while(iss >> nick)
 	{
 		if(!nick.empty())
 		{
+			if(nick == "@" + bot.nick)
+				chanops[chan] = true;
+
 			if(chan == tb_chan && nick[0] == '@' && nick != "Q" && nick != "@" + bot.nick)
 				tb_ops.insert(nick.substr(1));
 
@@ -1298,29 +1298,32 @@ bool ChanopsIrcBotPlugin::kick_event(const message& msg)
 bool ChanopsIrcBotPlugin::join_event(const message& msg)
 {
 	BUG_COMMAND(msg);
-	// ===============================
+	//================================
 	// JOIN: JOIN
-	// -------------------------------
-	//                  line: :Sergei!~Tod@supeRSergei.users.quakenet.org JOIN #openarenahelp
-	//                prefix: Sergei!~Tod@supeRSergei.users.quakenet.org
+	//--------------------------------
+	//                  line: :SooKee!~SooKee@SooKee.users.quakenet.org JOIN #skivvy-test
+	//                prefix: SooKee!~SooKee@SooKee.users.quakenet.org
 	//               command: JOIN
-	//                params:  #openarenahelp
+	//                params:  #skivvy-test
 	// get_servername()     :
-	// get_nickname()       : Sergei
-	// get_user()           : ~Tod
-	// get_host()           : supeRSergei.users.quakenet.org
-	// param                : #openarenahelp
-	// middle               : #openarenahelp
+	// get_nickname()       : SooKee
+	// get_user()           : ~SooKee
+	// get_host()           : SooKee.users.quakenet.org
+	// param                : #skivvy-test
+	// middle               : #skivvy-test
 	// trailing             :
-	// get_nick()           : Sergei
-	// get_chan()           : #openarenahelp
+	// get_nick()           : SooKee
+	// get_chan()           : #skivvy-test
 	// get_user_cmd()       :
 	// get_user_params()    :
-	// -------------------------------
+	//--------------------------------
 
 	// Auto OP/VOICE/MODE/bans etc..
-	enforce_static_rules(msg.get_chan(), msg.get_userhost(), msg.get_nick());
-	enforce_dynamic_rules(msg.get_chan(), msg.get_userhost(), msg.get_nick());
+	bug_var(msg.get_chan());
+	bug_var(msg.get_userhost());
+	bug_var(msg.get_nickname());
+	enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
+	enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
 
 	for(const str& chan: bot.get_vec(GREET_JOINERS_VEC))
 	{
@@ -1401,11 +1404,11 @@ bool ChanopsIrcBotPlugin::enforce_dynamic_rules(const str& chan, const str& user
 	return true;
 }
 
-bool ChanopsIrcBotPlugin::enforce_static_rules(const str& chan, const str& userhost, const str& nick)
+bool ChanopsIrcBotPlugin::enforce_static_rules(const str& chan, const str& prefix, const str& nick)
 {
 	bug_func();
 	bug_var(chan);
-	bug_var(userhost);
+	bug_var(prefix);
 	bug_var(nick);
 	str chan_pattern, who_pattern;
 	if(!chanops[chan])
@@ -1415,50 +1418,67 @@ bool ChanopsIrcBotPlugin::enforce_static_rules(const str& chan, const str& userh
 	// pcre kicks
 	for(const str& s: bot.get_vec(CHANOPS_PCRE_KICK_VEC))
 		if(sgl(siss(s) >> chan_pattern >> who_pattern, why))
-			if(bot.preg_match(chan_pattern, chan, true) && bot.preg_match(who_pattern, userhost))
+			if(bot.preg_match(chan_pattern, chan, true) && bot.preg_match(who_pattern, prefix))
 				irc->kick({chan}, {nick}, why);
 
 	// wild kicks
 	for(const str& s: bot.get_vec(CHANOPS_WILD_KICK_VEC))
 		if(sgl(siss(s) >> chan_pattern >> who_pattern, why))
-			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, userhost))
+			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
 				irc->kick({chan}, {nick}, why);
 
 	str mode;
 	// pcre modes
 	for(const str& s: bot.get_vec(CHANOPS_PCRE_MODE_VEC))
 		if(siss(s) >> chan_pattern >> who_pattern >> mode)
-			if(bot.preg_match(chan_pattern, chan, true) && bot.preg_match(who_pattern, userhost))
+			if(bot.preg_match(chan_pattern, chan, true) && bot.preg_match(who_pattern, prefix))
 				irc->mode(chan, mode , nick);
 
 	// wild modes
 	for(const str& s: bot.get_vec(CHANOPS_WILD_MODE_VEC))
 		if(siss(s) >> chan_pattern >> who_pattern >> mode)
-			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, userhost))
+			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
 				irc->mode(chan, mode , nick);
 
 	// pcre ops
 	for(const str& s: bot.get_vec(CHANOPS_PCRE_OP_VEC))
 		if(siss(s) >> chan_pattern >> who_pattern)
-			if(bot.preg_match(chan_pattern, chan, true) && bot.preg_match(who_pattern, userhost))
+			if(bot.preg_match(chan_pattern, chan, true) && bot.preg_match(who_pattern, prefix))
 				irc->mode(chan, "+o" , nick);
 
 	// wild ops
 	for(const str& s: bot.get_vec(CHANOPS_WILD_OP_VEC))
+	{
+		bug_var(s);
 		if(siss(s) >> chan_pattern >> who_pattern)
-			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, userhost))
+		{
+			bug_var(chan_pattern);
+			bug_var( who_pattern);
+			// chan: #skivvy-test
+			// userhost: ~SooKee@SooKee.users.quakenet.org
+			// nick: SooKee
+
+			// chan_pattern: #skivvy*
+			// who_pattern: *!*SooKee@SooKee.users.quakenet.org
+
+			if(bot.wild_match(chan_pattern, chan) && bot.wild_match(who_pattern, prefix))
+			{
+				bug("opping: " << nick);
 				irc->mode(chan, "+o" , nick);
+			}
+		}
+	}
 
 	// pcre voices
 	for(const str& s: bot.get_vec(CHANOPS_PCRE_VOICE_VEC))
 		if(siss(s) >> chan_pattern >> who_pattern)
-			if(bot.preg_match(chan_pattern, chan, true) && bot.preg_match(who_pattern, userhost))
+			if(bot.preg_match(chan_pattern, chan, true) && bot.preg_match(who_pattern, prefix))
 				irc->mode(chan, "+v", nick);
 
 	// wild voices
 	for(const str& s: bot.get_vec(CHANOPS_WILD_VOICE_VEC))
 		if(siss(s) >> chan_pattern >> who_pattern)
-			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, userhost))
+			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
 				irc->mode(chan, "+v", nick);
 
 	return true;

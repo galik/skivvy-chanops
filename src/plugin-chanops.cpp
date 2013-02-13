@@ -467,6 +467,9 @@ bool ChanopsIrcBotPlugin::banlist(const message& msg)
 		n = 1;
 
 	str chan = msg.get_chan();
+
+	lock_guard lock(store_mtx);
+
 	str_vec bans = store.get_vec("ban");
 
 	if(bans.empty())
@@ -489,7 +492,7 @@ bool ChanopsIrcBotPlugin::banlist(const message& msg)
 		for(siz i = start; i < end; ++i)
 		{
 			soss oss;
-			oss << IRC_BOLD << i << ": " << IRC_NORMAL << bans[i];
+			oss << IRC_BOLD << (i + 1) << ": " << IRC_NORMAL << bans[i];
 			bot.fc_reply(msg, prompt + oss.str());
 		}
 	}
@@ -520,11 +523,17 @@ bool ChanopsIrcBotPlugin::unban(const message& msg)
 	lock_guard lock(store_mtx);
 	const str_vec bans = store.get_vec("ban");
 	for(siz i = 0; i < bans.size(); ++i)
-		if(stl::find(items, i) == items.cend())
+		if(stl::find(items, i + 1) == items.cend())
 			newbans.push_back(bans[i]);
 		else
-			bot.fc_reply(msg, prompt + IRC_BOLD + std::to_string(i) + ": "
+		{
+			bot.fc_reply(msg, prompt + IRC_BOLD + std::to_string(i + 1) + ": "
 				+ IRC_NORMAL + bans[i]);
+
+			str chan, who;
+			if(siss(bans[i]) >> chan >> who)
+				irc->mode(chan, " -b " + who);
+		}
 
 	store.clear("ban");
 	store.set_from("ban", newbans);
@@ -574,6 +583,7 @@ bool ChanopsIrcBotPlugin::ban(const message& msg)
 	bug_var(chan);
 	bug_var(nick);
 
+	lock_guard lock(store_mtx);
 	// <nick>|<wild>
 	if(bot.nicks[chan].count(nick)) // ban by nick
 	{
@@ -633,13 +643,14 @@ bool ChanopsIrcBotPlugin::ban(const message& msg)
 
 		bug_var(wild);
 
-		store.set("ban", chan + " " + wild + " " + reason);
+		store.add("ban", chan + " " + wild + " " + reason);
 		irc->mode(chan, " +b " + wild);
 		irc->kick({chan}, {nick}, reason);
 	}
 	else // not a nick, assume nick is a wildcard on prefix
 	{
-		store.set("ban", chan + " " + nick);
+		store.add("ban", chan + " " + nick);
+		irc->mode(chan, " +b " + nick);
 	}
 
 	return true;

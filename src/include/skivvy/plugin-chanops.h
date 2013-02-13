@@ -172,11 +172,11 @@ private:
 	/**
 	 * Rules found in the config file
 	 */
-	bool enforce_static_rules(const str& chan, const str& userhost, const str& nick);
+	bool enforce_static_rules(const str& chan, const str& prefix, const str& nick);
 	/**
 	 * Rules found in the persistant store
 	 */
-	bool enforce_dynamic_rules(const str& chan, const str& userhost, const str& nick);
+	bool enforce_dynamic_rules(const str& chan, const str& prefix, const str& nick);
 	bool kickban(const str& chan, const str& nick);
 
 	/**

@@ -427,25 +427,94 @@ bool ChanopsIrcBotPlugin::ban(const message& msg)
 	// get_chan()           : #skivvy
 	//---------------------------------------------------
 
+	// !ban Nick *(+<type>)
+	// if not type given uses nick-ban
+	// types:
+	//        nick - <nick>!*@*
+	//        user - *!*<user>@*
+	//        host - *!*@*<host>
+	// If user/host info not available defaults to nick-ban
+
 	if(!permit(msg))
 		return false;
 
 	if(!msg.from_channel())
 		return bot.cmd_error_pm(msg, "ERROR: !ban can only be used from a channel.");
 
+	siss iss(msg.get_user_params());
 	str chan = msg.get_chan();
-	str user = msg.get_user_params();
+	str nick;
+	iss >> nick;
 
-	// <nick>|<pcre>
-	if(bot.nicks[chan].count(user)) // ban by nick
+	bug_var(chan);
+	bug_var(nick);
+
+	// <nick>|<wild>
+	if(bot.nicks[chan].count(nick)) // ban by nick
 	{
-		store.set("ban.nick." + chan, user);
-		enforce_rules(chan, user);
+		bool nick_ban = false;
+		bool user_ban = false;
+		bool host_ban = false;
+
+		str flag;
+		while((iss >> std::ws).peek() == '+' && iss >> flag)
+		{
+			if(flag == "+nick")
+				nick_ban = true;
+			else if(flag == "+user")
+				user_ban = true;
+			else if(flag == "+host")
+				host_ban = true;
+		}
+
+		str reason;
+		sgl(iss, reason);
+		reason = "Banned by " + msg.get_nickname() + ": " + reason;
+		bug_var(reason);
+
+		if(!nick_ban && !user_ban && !host_ban)
+			nick_ban = true;
+
+		str user;
+		str host;
+		sgl(sgl(siss(nicks[nick]), user, '@'), host);
+
+
+		if(user.empty() || host.empty())
+			nick_ban = !(user_ban = (host_ban = false));
+
+//		if(user_ban || host_ban)
+//			nick_ban = false;
+
+		bug_var(nick_ban);
+		bug_var(user_ban);
+		bug_var(host_ban);
+
+		str wild;
+		if(nick_ban)
+			wild += nick + "!";
+		else
+			wild += "*!";
+
+		if(user_ban)
+			wild += "*" + user + "@";
+		else
+			wild += "*@";
+
+		if(host_ban)
+			wild += "*" + host;
+		else
+			wild += "*";
+
+		bug_var(wild);
+
+		store.set("ban", chan + " " + wild + " " + reason);
+		irc->mode(chan, " +b " + wild);
+		irc->kick({chan}, {nick}, reason);
 	}
-	else // ban by wildcard on userhost
+	else // not a nick, assume nick is a wildcard on prefix
 	{
-		store.set("ban.wild." + chan, user);
-		enforce_rules(chan, user);
+		store.set("ban", chan + " " + nick);
 	}
 
 	return true;
@@ -1382,25 +1451,69 @@ bool ChanopsIrcBotPlugin::enforce_rules(const str& chan)
 	return true;
 }
 
-bool ChanopsIrcBotPlugin::enforce_dynamic_rules(const str& chan, const str& userhost, const str& nick)
+bool ChanopsIrcBotPlugin::enforce_dynamic_rules(const str& chan, const str& prefix, const str& nick)
 {
+	bug_func();
+	bug_var(chan);
+	bug_var(prefix);
+	bug_var(nick);
+	bug_var(chanops[chan]);
+
 	if(!chanops[chan])
 		return true;
 
-//	str_vec nicks = store.get_vec("ban.nick." + chan);
-//	for(const str& nick_match: nicks)
-//		if(nick_match == nick)
-//			return kickban(chan, nick);
-//
-//	str_vec pregs = store.get_vec("ban.preg." + msg.to);
-//	for(const str& preg: pregs)
-//		if(bot.preg_match(preg, msg.get_userhost()))
-//		{
-//			bot.fc_reply(msg, "USERHOST: " + msg.get_user() + " is banned from this channel.");
-//			irc->mode(msg.to, "+b *!*@*" + msg.get_userhost());
-//			irc->kick({msg.to}, {msg.get_user()}, "Bye bye.");
-//			return true;
-//		}
+
+	str chan_pattern, who_pattern, why;
+
+	bug("kicks");
+
+	// wild kicks
+	for(const str& s: store.get_vec("kick"))
+		if(sgl(siss(s) >> chan_pattern >> who_pattern, why))
+			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
+				irc->kick({chan}, {nick}, why);
+
+	bug("bans");
+
+	// wild bans
+	for(const str& s: store.get_vec("ban"))
+	{
+		bug_var(s);
+		// s: #skivvy Skivlet!*@*cpc2-pool13-2-0-cust799.15-1.cable.virginmedia.com
+		why.clear();
+		sgl(siss(s) >> chan_pattern >> who_pattern, why);
+		{
+			bug_var(chan_pattern);
+			bug_var(who_pattern);
+			bug_var(why);
+			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
+			{
+				bug("banning:" << nick << " from " << chan << " because " << why);
+				{ irc->mode(chan, "+b", who_pattern); irc->kick({chan}, {nick}, why); }
+			}
+		}
+	}
+
+	str mode;
+
+	// wild modes
+	for(const str& s: store.get_vec("mode"))
+		if(siss(s) >> chan_pattern >> who_pattern >> mode)
+			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
+				irc->mode(chan, mode , nick);
+
+	// wild ops
+	for(const str& s: store.get_vec("op"))
+		if(siss(s) >> chan_pattern >> who_pattern)
+			if(bot.wild_match(chan_pattern, chan) && bot.wild_match(who_pattern, prefix))
+				irc->mode(chan, "+o" , nick);
+
+	// wild voices
+	for(const str& s: store.get_vec("voice"))
+		if(siss(s) >> chan_pattern >> who_pattern)
+			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
+				irc->mode(chan, "+v", nick);
+
 	return true;
 }
 
@@ -1410,11 +1523,12 @@ bool ChanopsIrcBotPlugin::enforce_static_rules(const str& chan, const str& prefi
 	bug_var(chan);
 	bug_var(prefix);
 	bug_var(nick);
-	str chan_pattern, who_pattern;
+
 	if(!chanops[chan])
 		return true;
 
-	str why;
+	str chan_pattern, who_pattern, why;
+
 	// pcre kicks
 	for(const str& s: bot.get_vec(CHANOPS_PCRE_KICK_VEC))
 		if(sgl(siss(s) >> chan_pattern >> who_pattern, why))
@@ -1448,26 +1562,9 @@ bool ChanopsIrcBotPlugin::enforce_static_rules(const str& chan, const str& prefi
 
 	// wild ops
 	for(const str& s: bot.get_vec(CHANOPS_WILD_OP_VEC))
-	{
-		bug_var(s);
 		if(siss(s) >> chan_pattern >> who_pattern)
-		{
-			bug_var(chan_pattern);
-			bug_var( who_pattern);
-			// chan: #skivvy-test
-			// userhost: ~SooKee@SooKee.users.quakenet.org
-			// nick: SooKee
-
-			// chan_pattern: #skivvy*
-			// who_pattern: *!*SooKee@SooKee.users.quakenet.org
-
 			if(bot.wild_match(chan_pattern, chan) && bot.wild_match(who_pattern, prefix))
-			{
-				bug("opping: " << nick);
 				irc->mode(chan, "+o" , nick);
-			}
-		}
-	}
 
 	// pcre voices
 	for(const str& s: bot.get_vec(CHANOPS_PCRE_VOICE_VEC))

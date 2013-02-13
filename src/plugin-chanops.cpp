@@ -40,6 +40,7 @@ http://www.gnu.org/licenses/gpl-2.0.html
 #include <skivvy/ios.h>
 #include <skivvy/irc-constants.h>
 #include <skivvy/irc.h>
+#include <skivvy/utils.h>
 
 namespace skivvy { namespace ircbot {
 
@@ -407,6 +408,130 @@ bool ChanopsIrcBotPlugin::kickban(const str& chan, const str& nick)
 	return irc->mode(chan, " +b *!*" + nick + "@*") && irc->kick({chan}, {nick}, "Bye bye.");
 }
 
+str prompt_color(const str& seed)
+{
+	siz idx = 0;
+	for(const char c: seed)
+		idx += siz(c);
+
+	idx = (idx % 16) + 1;
+
+	soss oss;
+	oss << IRC_BOLD << IRC_COLOR << (idx<10?"0":"") << idx
+		<< seed << IRC_COLOR << IRC_Black << ": " << IRC_NORMAL;
+	return oss.str();
+}
+
+#define PROMPT_COLOR prompt_color(__func__)
+
+bool ChanopsIrcBotPlugin::banlist(const message& msg)
+{
+	BUG_COMMAND(msg);
+	//---------------------------------------------------
+	//                  line: :SooKee!~SooKee@SooKee.users.quakenet.org PRIVMSG #skivvy :!banlist #1
+	//                prefix: SooKee!~SooKee@SooKee.users.quakenet.org
+	//               command: PRIVMSG
+	//                params:  #skivvy :!banlist #1
+	// get_servername()     :
+	// get_nickname()       : SooKee
+	// get_user()           : ~SooKee
+	// get_host()           : SooKee.users.quakenet.org
+	// param                : #skivvy
+	// param                : !banlist #1
+	// middle               : #skivvy
+	// trailing             : !banlist #1
+	// get_nick()           : SooKee
+	// get_chan()           : #skivvy
+	// get_user_cmd()       : !banlist
+	// get_user_params()    : #1
+	//---------------------------------------------------
+
+	// Make this channel specific
+
+	static const str prompt = prompt_color("banlist");
+
+	if(!permit(msg))
+		return false;
+
+	if(!msg.from_channel())
+		return bot.cmd_error_pm(msg, prompt + "!banlist can only be used from a channel.");
+
+	// !banlist #n
+
+	str skip;// = lowercase(msg.get_user_params());
+	siz n = 1;
+	siss iss(msg.get_user_params());
+	sgl(iss, skip, '#') >> n;
+
+	if(!n)
+		n = 1;
+
+	str chan = msg.get_chan();
+	str_vec bans = store.get_vec("ban");
+
+	if(bans.empty())
+		bot.fc_reply(msg, prompt + " there are no bans.");
+	else
+	{
+		const siz size = bans.size();
+		const siz start = (n - 1) * 10;
+		const siz end = (start + 10) > size ? size : (start + 10);
+
+		bug_var(size);
+		bug_var(start);
+		bug_var(end);
+
+		bot.fc_reply(msg, prompt + IRC_UNDERLINE + IRC_BOLD + "Listing #" + std::to_string(n)
+			+ " of " + std::to_string((size + 9)/10)
+			+ IRC_NORMAL + " (from " + std::to_string(start + 1) + " to "
+			+ std::to_string(end) + " of " + std::to_string(size) + ")");
+
+		for(siz i = start; i < end; ++i)
+		{
+			soss oss;
+			oss << IRC_BOLD << i << ": " << IRC_NORMAL << bans[i];
+			bot.fc_reply(msg, prompt + oss.str());
+		}
+	}
+
+	return true;
+}
+
+bool ChanopsIrcBotPlugin::unban(const message& msg)
+{
+	BUG_COMMAND(msg);
+	static const str prompt = prompt_color("unban");
+
+	if(!permit(msg))
+		return false;
+
+	if(!msg.from_channel())
+		return bot.cmd_error_pm(msg, prompt + "!unban can only be used from a channel.");
+
+	// Make this channel specific
+
+	// !unban <range-list>
+
+	siz_vec items;
+	if(!parse_rangelist(msg.get_user_params(), items))
+		return bot.cmd_error(msg, prompt + bot.help(msg.get_user_cmd()));
+
+	str_vec newbans;
+	lock_guard lock(store_mtx);
+	const str_vec bans = store.get_vec("ban");
+	for(siz i = 0; i < bans.size(); ++i)
+		if(stl::find(items, i) == items.cend())
+			newbans.push_back(bans[i]);
+		else
+			bot.fc_reply(msg, prompt + IRC_BOLD + std::to_string(i) + ": "
+				+ IRC_NORMAL + bans[i]);
+
+	store.clear("ban");
+	store.set_from("ban", newbans);
+
+	return true;
+}
+
 bool ChanopsIrcBotPlugin::ban(const message& msg)
 {
 	BUG_COMMAND(msg);
@@ -638,7 +763,7 @@ bool ChanopsIrcBotPlugin::tell(const message& msg)
 		store.set("tell." + nick, nickname + " " + chan + " " + std::to_string(std::time(0))
 		+ " " + text);
 
-	bot.fc_reply(msg, prompt + nick + " will be told when he next speaks.");
+	bot.fc_reply_note(msg, prompt + nick + " will be told when he next speaks.");
 	return true;
 }
 
@@ -815,6 +940,8 @@ bool ChanopsIrcBotPlugin::initialize()
 		{"!users", G_USER}
 		, {"!reclaim", G_USER}
 		, {"!ban", G_OPER}
+		, {"!banlist", G_OPER}
+		, {"!unban", G_OPER}
 		, {"!votekick", G_OPER}
 		, {"!seen", G_ANY}
 		, {"!tell", G_ANY}
@@ -903,6 +1030,18 @@ bool ChanopsIrcBotPlugin::initialize()
 		"!ban"
 		, "!ban <nick>|<regex> - ban either a registered user OR a regex match on userhost."
 		, [&](const message& msg){ ban(msg); }
+	});
+	add
+	({
+		"!banlist"
+		, "!banlist List bans for the channel by number."
+		, [&](const message& msg){ banlist(msg); }
+	});
+	add
+	({
+		"!unban"
+		, "!unban 2-4,7,9,11-15 - remove all the bans coresponding to the list of numbers from !banlist."
+		, [&](const message& msg){ unban(msg); }
 	});
 	bot.add_monitor(*this);
 	return true;
@@ -1356,11 +1495,14 @@ bool ChanopsIrcBotPlugin::kick_event(const message& msg)
 	str response = responses[idx];
 	bug_var(response);
 
-	for(siz i = 0; i < response.size(); ++i)
-		if(response[i] == '*')
-			if(!i || response[i - 1] != '\\')
-				{ response.replace(i, 1, who); i += who.size() - 1; }
+//	for(siz i = 0; i < response.size(); ++i)
+//		if(response[i] == '*')
+//			if(!i || response[i - 1] != '\\')
+//				{ response.replace(i, 1, who); i += who.size() - 1; }
+//			else if(i && response[i - 1] == '\\')
+//				response.replace(i - 1, 1, "");
 
+	response = wild_replace(response, who);
 	return irc->me(msg.get_chan(), response);
 }
 
@@ -1476,23 +1618,11 @@ bool ChanopsIrcBotPlugin::enforce_dynamic_rules(const str& chan, const str& pref
 	bug("bans");
 
 	// wild bans
+	why.clear();
 	for(const str& s: store.get_vec("ban"))
-	{
-		bug_var(s);
-		// s: #skivvy Skivlet!*@*cpc2-pool13-2-0-cust799.15-1.cable.virginmedia.com
-		why.clear();
-		sgl(siss(s) >> chan_pattern >> who_pattern, why);
-		{
-			bug_var(chan_pattern);
-			bug_var(who_pattern);
-			bug_var(why);
+		if(sgl(siss(s) >> chan_pattern >> who_pattern, why))
 			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
-			{
-				bug("banning:" << nick << " from " << chan << " because " << why);
 				{ irc->mode(chan, "+b", who_pattern); irc->kick({chan}, {nick}, why); }
-			}
-		}
-	}
 
 	str mode;
 

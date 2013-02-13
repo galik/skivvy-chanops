@@ -74,6 +74,8 @@ private:
 
 	SMTP smtp;
 
+	std::mutex store_mtx;
+
 	std::mutex nicks_mtx;
 	nick_map nicks; // nick -> userhost
 
@@ -184,6 +186,8 @@ private:
 	 */
 	bool list_users(const message& msg);
 	bool ban(const message& msg);
+	bool banlist(const message& msg);
+	bool unban(const message& msg);
 	bool seen(const message& msg);
 	bool tell(const message& msg);
 	bool talk_event(const message& msg);

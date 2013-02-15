@@ -111,12 +111,13 @@ public:
 	struct user_t
 	{
 //		str prefix; // <nick>!<ircuser>@<host>
+		std::time_t login_time;
 		str userhost; // <ircuser>@<host>
 		str user; // the user by which we logged in as
 		str nick; // current nick
 		str_set groups;
 
-//		user_t(const user_t& u): prefix(u.prefix) {}
+		user_t():login_time(0) {}
 		user_t(const message& msg, const user_r& ur)
 		: userhost(msg.get_userhost()), user(ur.user)
 		, nick(msg.get_nick()), groups(ur.groups)
@@ -124,6 +125,9 @@ public:
 
 		bool operator<(const user_t& u) const { return user < u.user; }
 		bool operator==(const user_t& u) const { return user == u.user; }
+
+		friend std::istream& operator>>(std::istream& is, user_t& u);
+		friend std::ostream& operator<<(std::ostream& os, const user_t& u);
 	};
 
 	typedef std::set<user_t> user_set;

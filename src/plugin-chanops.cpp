@@ -107,7 +107,6 @@ static uint32_t checksum(const std::string& pass)
 	return sum;
 }
 
-
 std::ostream& operator<<(std::ostream& os, const ChanopsIrcBotPlugin::user_r& ur)
 {
 	bug_func();
@@ -133,6 +132,43 @@ std::istream& operator>>(std::istream& is, ChanopsIrcBotPlugin::user_r& ur)
 	str group;
 	while(std::getline(is, group, ','))
 		ur.groups.insert(group);
+	return is;
+}
+
+std::ostream& operator<<(std::ostream& os, const ChanopsIrcBotPlugin::user_t& u)
+{
+//	std::time_t login_time;
+//	str userhost; // <ircuser>@<host>
+//	str user; // the user by which we logged in as
+//	str nick; // current nick
+//	str_set groups;
+	// {<login_time>:<userhost>:<user>:<nick>:group1,group2}
+
+	soss oss;
+	oss << u.login_time << ':' << u.userhost << ':' << u.user << ':' << u.nick << ':';
+	str sep;
+	for(const str& g: u.groups)
+		{ oss << sep << g; sep = ","; }
+	os << '{' << escaped(oss.str()) << '}';
+
+	return os;
+}
+std::istream& operator>>(std::istream& is, ChanopsIrcBotPlugin::user_t& u)
+{
+
+	// {<login_time>:<userhost>:<user>:<nick>:group1,group2}
+
+	str o;
+	getobject(is, o);
+	unescape(o);
+	siss iss(o);
+	(iss >> u.login_time).ignore();
+	sgl(iss, u.userhost, ':');
+	sgl(iss, u.user, ':');
+	sgl(iss, u.nick, ':');
+	str group;
+	while(sgl(iss, group, ','))
+		u.groups.insert(group);
 	return is;
 }
 
@@ -311,12 +347,14 @@ bool ChanopsIrcBotPlugin::login(const message& msg)
 	lock_guard lock(users_mtx);
 
 	str user_key = "user." + user;
+	bug_var(user_key);
 
 	if(!store.has(user_key))
 		return bot.cmd_error_pm(msg, "ERROR: Username not found.");
 
 	user_r ur;
 	ur = store.get(user_key, ur);
+	bug("got ur");
 
 	if(ur.groups.count(G_BANNED))
 		return bot.cmd_error_pm(msg, "ERROR: Banned");
@@ -325,11 +363,27 @@ bool ChanopsIrcBotPlugin::login(const message& msg)
 		return bot.cmd_error_pm(msg, "ERROR: Bad password");
 
 	user_t u(msg, ur);
+	bug("got u");
 
-	if(users.count(u))
+	user_set::iterator ui;
+	if((ui = users.find(u)) != users.end() && ui->userhost == u.userhost)
 		return bot.cmd_error_pm(msg, "You are already logged in to " + bot.nick);
 
+	bug("got ui");
+
+	u.login_time = std::time(0);
 	users.insert(u);
+
+	if(ui != users.end()) // relogin new userhost
+	{
+		str_vec pusers = store.get_vec("logged-in");
+		for(str& puser: pusers)
+			if(siss(puser) >> u && u.user == ui->user)
+				{ soss oss; oss << *ui; puser = oss.str(); }
+		store.set_from("logged-in", pusers);
+	}
+	else
+	{ soss oss; oss << u; store.add("logged-in", oss.str()); }
 
 	str sep;
 	soss oss;
@@ -338,7 +392,9 @@ bool ChanopsIrcBotPlugin::login(const message& msg)
 		oss << sep << group;
 		sep = ", ";
 	}
-	bot.fc_reply_pm(msg, "You are now logged in to " + bot.nick + ": " + oss.str());
+
+//	bot.fc_reply_pm(msg, "You are now logged in to " + bot.nick + ": " + oss.str());
+	bot.fc_reply_note(msg, "You are now logged in to " + bot.nick + ": " + oss.str());
 
 	apply_acts(u);
 
@@ -981,6 +1037,16 @@ bool ChanopsIrcBotPlugin::initialize()
 			store.set("user." + user, ur);
 		}
 	}
+
+	// persistent logins
+	user_t u;
+	const str_vec logged_in = store.get_vec("logged-in");
+	for(const str& user: logged_in)
+		if(siss(user) >> u)
+		{
+			bug("USER: " << user << " is persistently logged-in.");
+			users.insert(u);
+		}
 
 	add
 	({

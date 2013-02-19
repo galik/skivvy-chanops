@@ -176,8 +176,7 @@ ChanopsIrcBotPlugin::ChanopsIrcBotPlugin(IrcBot& bot)
 : BasicIrcBotPlugin(bot)
 , store(bot.getf(STORE_FILE, STORE_FILE_DEFAULT))
 {
-//	smtp.mailfrom = "<noreply@sookee.dyndns.org>";
-	smtp.mailfrom = "<noreply@cpc2-pool13-2-0-cust799.15-1.cable.virginmedia.com>";
+	smtp.mailfrom = "<noreply@sookee.dyndns.org>";
 }
 
 ChanopsIrcBotPlugin::~ChanopsIrcBotPlugin() {}
@@ -710,27 +709,6 @@ bool ChanopsIrcBotPlugin::ban(const message& msg)
 	}
 
 	return true;
-}
-
-template<typename Rep, typename Period>
-void print_duration(std::chrono::duration<Rep, Period> t, std::ostream& os)
-{
-//    assert(0<=t.count() && "t must be >= 0");
-
-	// approximate because a day doesn't have a fixed length
-	typedef std::chrono::duration<int, std::ratio<60 * 60 * 24>> days;
-
-	auto d = std::chrono::duration_cast < days > (t);
-	auto h = std::chrono::duration_cast < std::chrono::hours > (t - d);
-	auto m = std::chrono::duration_cast < std::chrono::minutes > (t - d - h);
-	auto s = std::chrono::duration_cast < std::chrono::seconds > (t - d - h - m);
-	if(t >= days(1))
-		os << d.count() << "d ";
-	if(t >= std::chrono::hours(1))
-		os << h.count() << "h ";
-	if(t >= std::chrono::minutes(1))
-		os << m.count() << "m ";
-	os << s.count() << "s";
 }
 
 bool ChanopsIrcBotPlugin::seen(const message& msg)

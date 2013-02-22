@@ -166,6 +166,7 @@ private:
 	bool f1(const message& msg);
 	bool f2(const message& msg);
 	bool ballot(const str& chan, const str& nick, const st_time_point& end);
+	bool cookie(const message& msg, int num);
 
 	bool login(const message& msg);
 	//void apply_acts(const str& id);

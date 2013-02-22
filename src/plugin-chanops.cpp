@@ -91,6 +91,8 @@ const str CHANOPS_PCRE_KICK_VEC = "chanops.pcre.kick";
 const str CHANOPS_WILD_BAN_VEC = "chanops.wild.ban";
 const str CHANOPS_PCRE_BAN_VEC = "chanops.pcre.ban";
 
+const str CHANOPS_WILD_DEOP_VEC = "chanops.wild.deop";
+
 const str CHANOPS_WILD_VOICE_VEC = "chanops.wild.voice";
 const str CHANOPS_PCRE_VOICE_VEC = "chanops.pcre.voice";
 
@@ -477,7 +479,7 @@ str prompt_color(const str& seed)
 	return oss.str();
 }
 
-#define PROMPT_COLOR prompt_color(__func__)
+#define PROMPT prompt_color(__func__)
 
 bool ChanopsIrcBotPlugin::banlist(const message& msg)
 {
@@ -786,8 +788,10 @@ bool ChanopsIrcBotPlugin::tell(const message& msg)
 	// get_chan()           : #skivvy
 	//---------------------------------------------------
 
-	static const str prompt = IRC_BOLD + IRC_COLOR + IRC_Green + "tell"
-		+ IRC_COLOR + IRC_Black + ": " + IRC_NORMAL;
+//	static const str prompt = IRC_BOLD + IRC_COLOR + IRC_Green + "tell"
+//		+ IRC_COLOR + IRC_Black + ": " + IRC_NORMAL;
+
+	const str prompt = prompt_color("tell");
 
 	if(!permit(msg))
 		return false;
@@ -805,10 +809,10 @@ bool ChanopsIrcBotPlugin::tell(const message& msg)
 	}
 
 	if(!nickname.empty() && !userhost.empty())
-		store.set("tell." + nick, nickname + " " + chan + " " + std::to_string(std::time(0))
+		store.add("tell." + nick, nickname + " " + chan + " " + std::to_string(std::time(0))
 		+ " " + text);
 
-	bot.fc_reply_note(msg, prompt + nick + " will be told when he next speaks.");
+	bot.fc_reply(msg, prompt + nick + " will be told when he next speaks.");
 	return true;
 }
 
@@ -973,7 +977,34 @@ bool ChanopsIrcBotPlugin::ballot(const str& chan, const str& nick, const st_time
 
 	return true;
 }
-// every function belongs to a group
+
+bool ChanopsIrcBotPlugin::cookie(const message& msg, int num)
+{
+	BUG_COMMAND(msg);
+	if(!permit(msg))
+		return false;
+
+	// num: +1 = give, -1 = take,  0 = count
+
+	str nick = msg.get_user_params();
+
+	if(num)
+	{
+		store.set("cookies." + nick, store.get("cookies." + nick, 0) + num);
+		if(num < 0)
+			bot.fc_reply(msg, PROMPT + msg.get_nickname() + " has taken "
+				+ std::to_string(num) + " cookie" + (num>1?"s":"") + " to " + nick + ".");
+		else
+			bot.fc_reply(msg, PROMPT + msg.get_nickname() + " has given "
+				+ std::to_string(num) + " cookie" + (num>1?"s":"") + " from " + nick + ".");
+		return true;
+	}
+
+	int n = store.get("cookies." + nick, 0);
+	bot.fc_reply(msg, PROMPT + " has " + std::to_string(n) + " cookie" + ((n==1||n==-1)?"":"s"));
+
+	return true;
+}
 
 // INTERFACE: BasicIrcBotPlugin
 
@@ -990,6 +1021,8 @@ bool ChanopsIrcBotPlugin::initialize()
 		, {"!votekick", G_OPER}
 		, {"!seen", G_ANY}
 		, {"!tell", G_ANY}
+		, {"!cookie", G_OPER}
+		, {"!eatcookie", G_OPER}
 	};
 
 	// chanops.init.user: <user> <pass> <PERM> *( "," <PERM> )
@@ -1098,6 +1131,24 @@ bool ChanopsIrcBotPlugin::initialize()
 		, "!unban 2-4,7,9,11-15 - remove all the bans coresponding to the list of numbers from !banlist."
 		, [&](const message& msg){ unban(msg); }
 	});
+	add
+	({
+		"!cookies"
+		, "!cookies <nick> Show <nick>'s cookies."
+		, [&](const message& msg){ cookie(msg, 1); }
+	});
+	add
+	({
+		"!cookie++"
+		, "!cookie++ <nick> Give <nick> a cookie."
+		, [&](const message& msg){ cookie(msg, 1); }
+	});
+	add
+	({
+		"!cookie--"
+		, "!cookie-- <nick> Take a cookie from <nick>."
+		, [&](const message& msg){ cookie(msg, -1); }
+	});
 	bot.add_monitor(*this);
 	return true;
 }
@@ -1118,6 +1169,8 @@ void ChanopsIrcBotPlugin::exit()
 void ChanopsIrcBotPlugin::event(const message& msg)
 {
 //	BUG_COMMAND(msg);
+	enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
+	enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
 
 	// update nicks if appropriate
 	str nickname = msg.get_nickname();
@@ -1159,32 +1212,36 @@ bool ChanopsIrcBotPlugin::talk_event(const message& msg)
 
 	if(store.has("tell." + nickname))
 	{
-		str info = store.get("tell." + nickname);
-		time_t utime;
-		str nick, chan, text;
-		if(!sgl(siss(info) >> nick >> chan >> utime >> std::ws, text))
+		str_vec infos = store.get_vec("tell." + nickname);
+		for(const str& info: infos)
 		{
-			log("ERROR: chnops: broken tell record in store: " << info);
-			return true;
+	//		str info = store.get("tell." + nickname);
+			time_t utime;
+			str nick, chan, text;
+			if(!sgl(siss(info) >> nick >> chan >> utime >> std::ws, text))
+			{
+				log("ERROR: chnops: broken tell record in store: " << info);
+				return true;
+			}
+
+			if(chan != msg.get_chan())
+				return true;
+
+			static const str prompt = IRC_BOLD + IRC_COLOR + IRC_Hot_Pink + "tell"
+				+ IRC_COLOR + IRC_Black + ": " + IRC_NORMAL;
+
+			soss oss;
+			print_duration(st_clk::now() - st_clk::from_time_t(utime), oss);
+
+			str time = oss.str();
+			trim(time);
+			bot.fc_reply(msg, prompt + nickname + ": " + IRC_BOLD + nick
+				+ IRC_NORMAL + " left you a message "
+				+ IRC_BOLD + time
+				+ IRC_NORMAL+ " ago: \""
+				+ IRC_BOLD + text
+				+ IRC_NORMAL + "\"");
 		}
-
-		if(chan != msg.get_chan())
-			return true;
-
-		static const str prompt = IRC_BOLD + IRC_COLOR + IRC_Hot_Pink + "tell"
-			+ IRC_COLOR + IRC_Black + ": " + IRC_NORMAL;
-
-		soss oss;
-		print_duration(st_clk::now() - st_clk::from_time_t(utime), oss);
-
-		str time = oss.str();
-		trim(time);
-		bot.fc_reply(msg, prompt + nickname + ": " + IRC_BOLD + nick
-			+ IRC_NORMAL + " left you a message "
-			+ IRC_BOLD + time
-			+ IRC_NORMAL+ " ago: \""
-			+ IRC_BOLD + text
-			+ IRC_NORMAL + "\"");
 		store.clear("tell." + nickname);
 	}
 
@@ -1588,8 +1645,8 @@ bool ChanopsIrcBotPlugin::join_event(const message& msg)
 	bug_var(msg.get_chan());
 	bug_var(msg.get_userhost());
 	bug_var(msg.get_nickname());
-	enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
-	enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
+//	enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
+//	enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
 
 	for(const str& chan: bot.get_vec(GREET_JOINERS_VEC))
 	{
@@ -1725,6 +1782,12 @@ bool ChanopsIrcBotPlugin::enforce_static_rules(const str& chan, const str& prefi
 		if(sgl(siss(s) >> chan_pattern >> who_pattern, why))
 			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
 				irc->kick({chan}, {nick}, why);
+
+	// wild deops
+	for(const str& s: bot.get_vec(CHANOPS_WILD_DEOP_VEC))
+		if(sgl(siss(s) >> chan_pattern >> who_pattern, why))
+			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
+				irc->mode(chan, "-o", nick);
 
 	str mode;
 	// pcre modes

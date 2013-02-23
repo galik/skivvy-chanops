@@ -465,22 +465,6 @@ bool ChanopsIrcBotPlugin::kickban(const str& chan, const str& nick)
 	return irc->mode(chan, " +b *!*" + nick + "@*") && irc->kick({chan}, {nick}, "Bye bye.");
 }
 
-str prompt_color(const str& seed)
-{
-	siz idx = 0;
-	for(const char c: seed)
-		idx += siz(c);
-
-	idx = (idx % 16) + 1;
-
-	soss oss;
-	oss << IRC_BOLD << IRC_COLOR << (idx<10?"0":"") << idx
-		<< seed << IRC_COLOR << IRC_Black << ": " << IRC_NORMAL;
-	return oss.str();
-}
-
-#define PROMPT prompt_color(__func__)
-
 bool ChanopsIrcBotPlugin::banlist(const message& msg)
 {
 	BUG_COMMAND(msg);
@@ -992,16 +976,16 @@ bool ChanopsIrcBotPlugin::cookie(const message& msg, int num)
 	{
 		store.set("cookies." + nick, store.get("cookies." + nick, 0) + num);
 		if(num < 0)
-			bot.fc_reply(msg, PROMPT + msg.get_nickname() + " has taken "
+			bot.fc_reply(msg, REPLY_PROMPT + msg.get_nickname() + " has taken "
 				+ std::to_string(num) + " cookie" + (num>1?"s":"") + " to " + nick + ".");
 		else
-			bot.fc_reply(msg, PROMPT + msg.get_nickname() + " has given "
+			bot.fc_reply(msg, REPLY_PROMPT + msg.get_nickname() + " has given "
 				+ std::to_string(num) + " cookie" + (num>1?"s":"") + " from " + nick + ".");
 		return true;
 	}
 
 	int n = store.get("cookies." + nick, 0);
-	bot.fc_reply(msg, PROMPT + " has " + std::to_string(n) + " cookie" + ((n==1||n==-1)?"":"s"));
+	bot.fc_reply(msg, REPLY_PROMPT + " has " + std::to_string(n) + " cookie" + ((n==1||n==-1)?"":"s"));
 
 	return true;
 }

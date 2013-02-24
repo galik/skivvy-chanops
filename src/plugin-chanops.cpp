@@ -45,7 +45,7 @@ http://www.gnu.org/licenses/gpl-2.0.html
 namespace skivvy { namespace ircbot {
 
 IRC_BOT_PLUGIN(ChanopsIrcBotPlugin);
-PLUGIN_INFO("chanops", "Channel Operations", "0.1");
+PLUGIN_INFO("chanops", "Channel Operations", "1.0-beta");
 
 using namespace skivvy;
 using namespace skivvy::irc;

@@ -653,7 +653,16 @@ bool ChanopsIrcBotPlugin::ban(const message& msg)
 
 		str user;
 		str host;
-		sgl(sgl(siss(nicks[nick]), user, '@'), host);
+
+//		const auto& i = std::find_if(ircusers.begin(), ircusers.end(), find_nick(nick));
+		ircuser_set_iter i;
+		if((i = find_by_nick(ircusers, nick)) != ircusers.end())
+//		if((i = std::find_if(ircusers.begin(), ircusers.end(), find_nick(nick))) != ircusers.end())
+		{
+			user = i->user;
+			host = i->host;
+//			sgl(sgl(siss(ircusers[nick]), user, '@'), host);
+		}
 
 
 		if(user.empty() || host.empty())
@@ -844,6 +853,8 @@ str blue = IRC_COLOR + IRC_Navy_Blue + "," + IRC_White;
 str green = IRC_COLOR + IRC_Green + "," + IRC_White;
 str bold = IRC_BOLD;
 
+// mode #channel -o+b Victim *!*@Victims-ip-and.isp.net
+
 bool ChanopsIrcBotPlugin::votekick(const message& msg)
 {
 	BUG_COMMAND(msg);
@@ -860,11 +871,19 @@ bool ChanopsIrcBotPlugin::votekick(const message& msg)
 	if(vote_in_progress[chan])
 		return bot.cmd_error(msg, "Vote already in progress.", true);
 
+	// TODO: track nick using userhost
+
 	str nick;
 	str reason;
 	siss iss(msg.get_user_params());
 	if(!(sgl(iss >> nick >> std::ws, reason)))
 		return bot.cmd_error(msg, "usege: !votekick <nick> <reason> *(<duration>)");
+
+	ircuser_set_iter i;
+	if((i = find_by_nick(ircusers, nick)) == ircusers.end())
+		return bot.cmd_error(msg, "Nick " + nick + " not found.");
+
+	str user = i->user;
 
 	siz secs = 60;
 
@@ -880,7 +899,7 @@ bool ChanopsIrcBotPlugin::votekick(const message& msg)
 	voted[chan].clear();
 
 	vote_in_progress[chan] = true;
-	vote_fut[chan] = std::async(std::launch::async, [=]{ ballot(chan, nick, st_clk::now() + std::chrono::seconds(secs)); });
+	vote_fut[chan] = std::async(std::launch::async, [=]{ ballot(chan, user, nick, st_clk::now() + std::chrono::seconds(secs)); });
 
 	return true;
 }
@@ -937,7 +956,7 @@ bool ChanopsIrcBotPlugin::f2(const message& msg)
 	return true;
 }
 
-bool ChanopsIrcBotPlugin::ballot(const str& chan, const str& nick, const st_time_point& end)
+bool ChanopsIrcBotPlugin::ballot(const str& chan, const str& user, const str& oldnick, const st_time_point& end)
 {
 	while(st_clk::now() < end)
 		std::this_thread::sleep_until(end);
@@ -946,6 +965,17 @@ bool ChanopsIrcBotPlugin::ballot(const str& chan, const str& nick, const st_time
 	bug_var(chan);
 	bug_var(vote_f1[chan]);
 	bug_var(vote_f2[chan]);
+
+	ircuser_set_iter i;
+	if((i = find_by_user(ircusers, user)) == ircusers.end())
+	{
+		irc->say(chan, bold + red + "VOTE-KICK: " + blue + "Oh dear "
+			+ black + oldnick + blue + " seems to have disapeared!");
+		return true;
+	}
+
+	str nick = i->nick;
+
 	if(vote_f1[chan] > vote_f2[chan])
 	{
 		irc->say(chan, bold + red + "VOTE-KICK: " + black
@@ -1158,13 +1188,14 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 
 	// update nicks if appropriate
 	str nickname = msg.get_nickname();
-	str userhost = msg.get_userhost();
-	if(!nickname.empty() && !userhost.empty())
-		nicks[nickname] = userhost;
+	str user = msg.get_user();
+	str host = msg.get_host();
 
-	str chan = msg.get_chan();
-	if(!chan.empty())
-		enforce_rules(chan, nickname);
+	if(!nickname.empty() && !user.empty() && !user.empty())
+	{
+		lock_guard lock(nicks_mtx);
+		ircusers.insert({nickname, user, host});
+	}
 
 	if(msg.command == PRIVMSG)
 		talk_event(msg);
@@ -1334,7 +1365,7 @@ bool ChanopsIrcBotPlugin::whoisuser_event(const message& msg)
 
 		{
 			lock_guard lock(nicks_mtx);
-			nicks[params[1]] = params[1] + '!' + params[2] + '@' + params[3];
+			ircusers.insert({params[1], params[2], params[3]});
 		}
 	}
 
@@ -1379,7 +1410,8 @@ bool ChanopsIrcBotPlugin::name_event(const message& msg)
 
 	siss iss(msg.get_trailing());
 
-	lock_guard lock(nicks_mtx);
+//	lock_guard lock(nicks_mtx);
+	str_set whoiss;
 	while(iss >> nick)
 	{
 		if(!nick.empty())
@@ -1387,20 +1419,24 @@ bool ChanopsIrcBotPlugin::name_event(const message& msg)
 			if(nick == "@" + bot.nick)
 				chanops[chan] = true;
 
-			if(chan == tb_chan && nick[0] == '@' && nick != "Q" && nick != "@" + bot.nick)
+			// TODO: add an exceptions list? deal with Q on QukeNet somehow...
+			if(chan == tb_chan && nick[0] == '@' /*&& nick != "Q"*/ && nick != "@" + bot.nick)
 				tb_ops.insert(nick.substr(1));
 
 			if(nick[0] == '+' || nick[0] == '@')
 				nick.erase(0, 1);
 
-			if(nicks.find(nick) == nicks.end())
-			{
-				// TODO: re-add this when I actually use the info.
-				//irc->whois(nick); // initiate request, see whois_event() for response
-				nicks[nick];
-			}
+			whoiss.insert(nick);
+//			if(ircusers.find(nick) == ircusers.end())
+//			{
+//				irc->whois(nick); // initiate request, see whois_event() for response
+//				ircusers[nick];
+//			}
 		}
 	}
+
+	if(!whoiss.empty())
+		irc->whois(whoiss);
 
 	// WHOIS
 	// RPL_WHOISUSER     :quakenet.org 311 Skivvy SooKee ~SooKee SooKee.users.quakenet.org * :SooKee
@@ -1667,27 +1703,6 @@ bool ChanopsIrcBotPlugin::join_event(const message& msg)
 			}
 		}
 	}
-
-	return true;
-}
-
-bool ChanopsIrcBotPlugin::enforce_rules(const str& chan, const str& nick)
-{
-	for(const str& b: store.get_keys_if_wild("ban.nick.*"))
-		if(store.get(b) == nick) // are then in channel?
-			return kickban(chan, nick);
-
-	for(const str& b: store.get_keys_if_wild("ban.wild.*"))
-		if(!nicks[nick].empty() && bot.wild_match(b, nicks[nick]))
-			return kickban(chan, nick);
-
-	return true;
-}
-
-bool ChanopsIrcBotPlugin::enforce_rules(const str& chan)
-{
-	for(const nick_pair& np: nicks)
-		enforce_rules(chan, np.first);
 
 	return true;
 }

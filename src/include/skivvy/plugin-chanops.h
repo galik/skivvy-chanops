@@ -64,20 +64,52 @@ CHANOPS_GROUP(VOICED);
 CHANOPS_GROUP(OPPED);
 CHANOPS_GROUP(BANNED);
 
+struct ircuser
+{
+	str nick;
+	str user;
+	str host;
+
+	bool operator<(const ircuser& u) const { return user + host < u.user + u.host; }
+};
+
+typedef std::set<ircuser> ircuser_set;
+typedef ircuser_set::iterator ircuser_set_iter;
+
+ircuser_set_iter find_by_nick(const ircuser_set& s, const str& nick)
+{
+	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return nick == u.nick; });
+}
+
+ircuser_set_iter find_by_user(const ircuser_set& s, const str& user)
+{
+	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return user == u.user; });
+}
+
+bool found_by_nick(const ircuser_set& s, const str& nick)
+{
+	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return nick == u.nick; }) != s.end();
+}
+
+bool found_by_user(const ircuser_set& s, const str& user)
+{
+	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return user == u.user; }) != s.end();
+}
+
 class ChanopsIrcBotPlugin _final_
 : public BasicIrcBotPlugin
 , public IrcBotMonitor
 {
 private:
-	typedef std::map<str, str> nick_map;
-	typedef std::pair<const str, str> nick_pair;
 
 	SMTP smtp;
 
 	std::mutex store_mtx;
 
 	std::mutex nicks_mtx;
-	nick_map nicks; // nick -> userhost
+
+	ircuser_set ircusers; // nick -> userhost
+//	str_map userhosts; // user -> nick
 
 	// tack back server stuff
 	str_set tb_ops;
@@ -161,11 +193,12 @@ private:
 	str_siz_map vote_f1;
 	str_siz_map vote_f2;
 	str_set_map voted; // who already voted
+	bool vote_track_nick = false;
 
 	bool votekick(const message& msg);
 	bool f1(const message& msg);
 	bool f2(const message& msg);
-	bool ballot(const str& chan, const str& nick, const st_time_point& end);
+	bool ballot(const str& chan, const str& user, const str& oldnick, const st_time_point& end);
 	bool cookie(const message& msg, int num);
 
 	bool login(const message& msg);
@@ -173,13 +206,11 @@ private:
 	void apply_acts(const user_t& u);
 
 
-	bool enforce_rules(const str& chan);
-	bool enforce_rules(const str& chan, const str& nick);
-
 	/**
 	 * Rules found in the config file
 	 */
 	bool enforce_static_rules(const str& chan, const str& prefix, const str& nick);
+
 	/**
 	 * Rules found in the persistant store
 	 */

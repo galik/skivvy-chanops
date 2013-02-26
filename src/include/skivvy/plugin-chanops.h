@@ -75,6 +75,7 @@ struct ircuser
 
 typedef std::set<ircuser> ircuser_set;
 typedef ircuser_set::iterator ircuser_set_iter;
+typedef std::pair<ircuser_set_iter, bool> ircuser_set_pair;
 
 ircuser_set_iter find_by_nick(const ircuser_set& s, const str& nick)
 {

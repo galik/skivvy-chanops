@@ -958,11 +958,18 @@ bool ChanopsIrcBotPlugin::f2(const message& msg)
 
 bool ChanopsIrcBotPlugin::ballot(const str& chan, const str& user, const str& oldnick, const st_time_point& end)
 {
+
 	while(st_clk::now() < end)
 		std::this_thread::sleep_until(end);
+
 	lock_guard lock(vote_mtx);
-	vote_in_progress[chan] = false;
+
+	bug_func();
 	bug_var(chan);
+	bug_var(user);
+	bug_var(oldnick);
+
+	vote_in_progress[chan] = false;
 	bug_var(vote_f1[chan]);
 	bug_var(vote_f2[chan]);
 
@@ -974,20 +981,22 @@ bool ChanopsIrcBotPlugin::ballot(const str& chan, const str& user, const str& ol
 		return true;
 	}
 
-	str nick = i->nick;
+	bug_var(i->nick);
+	bug_var(i->user);
+	bug_var(i->host);
 
 	if(vote_f1[chan] > vote_f2[chan])
 	{
 		irc->say(chan, bold + red + "VOTE-KICK: " + black
-			+ nick + blue + " : The people have spoken and it was not good "
+			+ i->nick + blue + " : The people have spoken and it was not good "
 			+ black + std::to_string(vote_f1[chan]) + " - "
 			+ std::to_string(vote_f2[chan]) + blue + " to kick!"
 			+ black + " :'(");
-		irc->kick({chan}, {nick}, "You are the weakest link.... goodby!");
+		irc->kick({chan}, {i->nick}, "You are the weakest link.... goodby!");
 	}
 	else
 		irc->say(chan, bold + red + "VOTE-KICK: " + blue + "The scrawney life of "
-			+ black + nick + blue + " has been saved by the people!");
+			+ black + i->nick + blue + " has been saved by the people!");
 
 	return true;
 }
@@ -1182,7 +1191,17 @@ void ChanopsIrcBotPlugin::exit()
 
 void ChanopsIrcBotPlugin::event(const message& msg)
 {
-//	BUG_COMMAND(msg);
+	BUG_COMMAND(msg);
+
+	bug("DUMPUNG USERS: - before");
+	for(const ircuser& u: ircusers)
+	{
+		bug_var(u.nick);
+		bug_var(u.user);
+		bug_var(u.host);
+	}
+	bug("");
+
 	enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
 	enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
 
@@ -1191,10 +1210,12 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 	str user = msg.get_user();
 	str host = msg.get_host();
 
-	if(!nickname.empty() && !user.empty() && !user.empty())
+	if(!nickname.empty() && !user.empty() && !host.empty())
 	{
+		ircuser u{nickname, user, host};
 		lock_guard lock(nicks_mtx);
-		ircusers.insert({nickname, user, host});
+		ircusers.erase(u);
+		ircusers.insert(u);
 	}
 
 	if(msg.command == PRIVMSG)
@@ -1207,10 +1228,22 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 		whoisuser_event(msg);
 	else if(msg.command == JOIN)
 		join_event(msg);
+//	else if(msg.command == QUIT)
+//		quit_event(msg);
+	//	else if(msg.command == PART)
+	//		part_event(msg);
 	else if(msg.command == MODE)
 		mode_event(msg);
 	else if(msg.command == KICK)
 		kick_event(msg);
+
+	bug("DUMPUNG USERS: - after");
+	for(const ircuser& u: ircusers)
+	{
+		bug_var(u.nick);
+		bug_var(u.user);
+		bug_var(u.host);
+	}
 }
 
 bool ChanopsIrcBotPlugin::talk_event(const message& msg)
@@ -1266,6 +1299,28 @@ bool ChanopsIrcBotPlugin::talk_event(const message& msg)
 bool ChanopsIrcBotPlugin::nick_event(const message& msg)
 {
 	BUG_COMMAND(msg);
+	//---------------------------------------------------
+	//                  line: :SooKee!~SooKee@SooKee.users.quakenet.org NICK :hidingme
+	//                prefix: SooKee!~SooKee@SooKee.users.quakenet.org
+	//               command: NICK
+	//                params:  :hidingme
+	// get_servername()     :
+	// get_nickname()       : SooKee
+	// get_user()           : ~SooKee
+	// get_host()           : SooKee.users.quakenet.org
+	// param                : hidingme
+	// trailing             : hidingme
+	// get_nick()           : SooKee
+	// get_chan()           :
+	// get_user_cmd()       : hidingme
+	// get_user_params()    :
+	//---------------------------------------------------
+
+	ircuser u{msg.get_nick(), msg.get_user(), msg.get_host()};
+	lock_guard lock(nicks_mtx);
+	ircusers.erase(u);
+	ircusers.insert(u);
+
 	return true;
 }
 
@@ -1364,8 +1419,10 @@ bool ChanopsIrcBotPlugin::whoisuser_event(const message& msg)
 		}
 
 		{
+			ircuser u{params[1], params[2], params[3]};
 			lock_guard lock(nicks_mtx);
-			ircusers.insert({params[1], params[2], params[3]});
+			ircusers.erase(u);
+			ircusers.insert(u);
 		}
 	}
 

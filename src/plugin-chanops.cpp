@@ -1484,7 +1484,7 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 		// | Everything past this point requires ops |
 		// '-----------------------------------------'
 
-		if(ops)
+		if(!ops)
 			return true;
 
 		if(chan == tb_chan) // take back channel?
@@ -1510,6 +1510,9 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 			if(bot.has(CHANOPS_TAKEOVER_KEY))
 				irc->mode(chan, " -k " + bot.get(CHANOPS_TAKEOVER_KEY));
 		}
+
+		enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
+		enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
 
 		bug_var(chan);
 		bug_var(flag);

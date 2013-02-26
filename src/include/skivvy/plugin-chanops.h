@@ -107,8 +107,7 @@ private:
 
 	std::mutex store_mtx;
 
-	std::mutex nicks_mtx;
-
+	std::mutex ircusers_mtx;
 	ircuser_set ircusers; // nick -> userhost
 //	str_map userhosts; // user -> nick
 

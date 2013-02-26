@@ -1199,8 +1199,8 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 		bug_var(u.nick);
 		bug_var(u.user);
 		bug_var(u.host);
+		bug("-----------------------------");
 	}
-	bug("");
 
 	enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
 	enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
@@ -1213,7 +1213,7 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 	if(!nickname.empty() && !user.empty() && !host.empty())
 	{
 		ircuser u{nickname, user, host};
-		lock_guard lock(nicks_mtx);
+		lock_guard lock(ircusers_mtx);
 		ircusers.erase(u);
 		ircusers.insert(u);
 	}
@@ -1243,6 +1243,7 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 		bug_var(u.nick);
 		bug_var(u.user);
 		bug_var(u.host);
+		bug("-----------------------------");
 	}
 }
 
@@ -1317,7 +1318,7 @@ bool ChanopsIrcBotPlugin::nick_event(const message& msg)
 	//---------------------------------------------------
 
 	ircuser u{msg.get_nick(), msg.get_user(), msg.get_host()};
-	lock_guard lock(nicks_mtx);
+	lock_guard lock(ircusers_mtx);
 	ircusers.erase(u);
 	ircusers.insert(u);
 
@@ -1420,7 +1421,7 @@ bool ChanopsIrcBotPlugin::whoisuser_event(const message& msg)
 
 		{
 			ircuser u{params[1], params[2], params[3]};
-			lock_guard lock(nicks_mtx);
+			lock_guard lock(ircusers_mtx);
 			ircusers.erase(u);
 			ircusers.insert(u);
 		}
@@ -1583,7 +1584,7 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 		if(chan == tb_chan) // take back channel?
 		{
 			log("TAKEING BACH THE CHANNEL: " << tb_chan);
-			lock_guard lock(nicks_mtx);
+			lock_guard lock(ircusers_mtx);
 
 			for(const str& nick: tb_ops)
 				irc->kick({chan}, {nick}, bot.get(TAKEOVER_KICK_MSG, TAKEOVER_KICK_MSG_DEFAULT));

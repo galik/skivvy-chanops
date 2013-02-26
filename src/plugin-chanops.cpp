@@ -1770,6 +1770,12 @@ bool ChanopsIrcBotPlugin::enforce_static_rules(const str& chan, const str& prefi
 			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
 				irc->kick({chan}, {nick}, why);
 
+	// wild bans
+	for(const str& s: bot.get_vec(CHANOPS_WILD_BAN_VEC))
+		if(sgl(siss(s) >> chan_pattern >> who_pattern, why))
+			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
+				irc->mode(chan, "+b", nick);
+
 	// wild deops
 	for(const str& s: bot.get_vec(CHANOPS_WILD_DEOP_VEC))
 		if(sgl(siss(s) >> chan_pattern >> who_pattern, why))

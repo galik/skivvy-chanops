@@ -34,9 +34,10 @@ http://www.gnu.org/licenses/gpl-2.0.html
 #include <sstream>
 #include <chrono>
 
+#include <sookee/str.h>
+
 #include <skivvy/logrep.h>
 #include <skivvy/stl.h>
-#include <skivvy/str.h>
 #include <skivvy/ios.h>
 #include <skivvy/irc-constants.h>
 #include <skivvy/irc.h>
@@ -51,7 +52,7 @@ using namespace skivvy;
 using namespace skivvy::irc;
 using namespace skivvy::types;
 using namespace skivvy::utils;
-using namespace skivvy::string;
+using namespace sookee::string;
 
 const str STORE_FILE = "chanops.store.file";
 const str STORE_FILE_DEFAULT = "chanops-store.txt";

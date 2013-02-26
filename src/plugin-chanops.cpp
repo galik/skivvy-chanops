@@ -796,7 +796,7 @@ bool ChanopsIrcBotPlugin::tell(const message& msg)
 	str nick, text; // who & what to tall
 
 	siss iss(msg.get_user_params());
-	if(!ios::getstring(iss >> nick >> std::ws, text))
+	if(!sgl(iss >> nick >> std::ws, text))
 	{
 		log("ERROR: chanops: Bad tell message: " << msg.line);
 		return false;

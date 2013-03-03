@@ -71,11 +71,36 @@ struct ircuser
 	str host;
 
 	bool operator<(const ircuser& u) const { return user + host < u.user + u.host; }
+	bool operator==(const ircuser& u) const { return nick + user + host == u.nick + u.user + u.host; }
+
+	friend sss& operator<<(sss& ss, const ircuser& u)
+	{
+		ss << u.host << ' ' << u.user << ' ' << u.nick;
+		return ss;
+	}
+
+	friend sss& operator<<(sss&& ss, const ircuser& u)
+	{
+		return ss << u;
+	}
+
+	friend siss& operator>>(siss& ss, ircuser& u)
+	{
+		ss >> u.host >> u.user >> u.nick;
+		return ss;
+	}
+
+	friend siss& operator>>(siss&& ss, ircuser& u)
+	{
+		return ss >> u;
+	}
 };
 
 typedef std::set<ircuser> ircuser_set;
 typedef ircuser_set::iterator ircuser_set_iter;
 typedef std::pair<ircuser_set_iter, bool> ircuser_set_pair;
+typedef std::vector<ircuser> ircuser_vec;
+typedef ircuser_vec::iterator ircuser_vec_iter;
 
 ircuser_set_iter find_by_nick(const ircuser_set& s, const str& nick)
 {
@@ -109,7 +134,7 @@ private:
 
 	std::mutex ircusers_mtx;
 	ircuser_set ircusers; // nick -> userhost
-//	str_map userhosts; // user -> nick
+	st_time_point ircuser_update;
 
 	// tack back server stuff
 	str_set tb_ops;

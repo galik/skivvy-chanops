@@ -734,7 +734,7 @@ bool ChanopsIrcBotPlugin::seen(const message& msg)
 		return false;
 
 	str nick = msg.get_user_params();
-	str info = store.get("seen." + nick);
+	str info = store.get("seen." + lower_copy(nick));
 	bug_var(info);
 
 	std::time_t utime;
@@ -1005,6 +1005,9 @@ bool ChanopsIrcBotPlugin::ballot(const str& chan, const str& user, const str& ol
 bool ChanopsIrcBotPlugin::cookie(const message& msg, int num)
 {
 	BUG_COMMAND(msg);
+	bug_var(num);
+	bug_var(permit(msg));
+
 	if(!permit(msg))
 		return false;
 
@@ -1017,15 +1020,15 @@ bool ChanopsIrcBotPlugin::cookie(const message& msg, int num)
 		store.set("cookies." + nick, store.get("cookies." + nick, 0) + num);
 		if(num < 0)
 			bot.fc_reply(msg, REPLY_PROMPT + msg.get_nickname() + " has taken "
-				+ std::to_string(num) + " cookie" + (num>1?"s":"") + " to " + nick + ".");
+				+ std::to_string(num) + " cookie" + (num>1?"s":"") + " from " + nick + ".");
 		else
 			bot.fc_reply(msg, REPLY_PROMPT + msg.get_nickname() + " has given "
-				+ std::to_string(num) + " cookie" + (num>1?"s":"") + " from " + nick + ".");
+				+ std::to_string(num) + " cookie" + (num>1?"s":"") + " to " + nick + ".");
 		return true;
 	}
 
 	int n = store.get("cookies." + nick, 0);
-	bot.fc_reply(msg, REPLY_PROMPT + " has " + std::to_string(n) + " cookie" + ((n==1||n==-1)?"":"s"));
+	bot.fc_reply(msg, REPLY_PROMPT + nick + " has " + std::to_string(n) + " cookie" + ((n==1||n==-1)?"":"s"));
 
 	return true;
 }
@@ -1045,8 +1048,9 @@ bool ChanopsIrcBotPlugin::initialize()
 		, {"!votekick", G_OPER}
 		, {"!seen", G_ANY}
 		, {"!tell", G_ANY}
-		, {"!cookie", G_OPER}
-		, {"!eatcookie", G_OPER}
+		, {"!cookies", G_ANY}
+		, {"!cookie++", G_OPER}
+		, {"!cookie--", G_OPER}
 	};
 
 	// chanops.init.user: <user> <pass> <PERM> *( "," <PERM> )
@@ -1159,7 +1163,7 @@ bool ChanopsIrcBotPlugin::initialize()
 	({
 		"!cookies"
 		, "!cookies <nick> Show <nick>'s cookies."
-		, [&](const message& msg){ cookie(msg, 1); }
+		, [&](const message& msg){ cookie(msg, 0); }
 	});
 	add
 	({
@@ -1192,16 +1196,16 @@ void ChanopsIrcBotPlugin::exit()
 
 void ChanopsIrcBotPlugin::event(const message& msg)
 {
-	BUG_COMMAND(msg);
-
-	bug("DUMPUNG USERS: - before");
-	for(const ircuser& u: ircusers)
-	{
-		bug_var(u.nick);
-		bug_var(u.user);
-		bug_var(u.host);
-		bug("-----------------------------");
-	}
+//	BUG_COMMAND(msg);
+//
+//	bug("DUMPUNG USERS: - before");
+//	for(const ircuser& u: ircusers)
+//	{
+//		bug_var(u.nick);
+//		bug_var(u.user);
+//		bug_var(u.host);
+//		bug("-----------------------------");
+//	}
 
 	enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
 	enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
@@ -1217,6 +1221,36 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 		lock_guard lock(ircusers_mtx);
 		ircusers.erase(u);
 		ircusers.insert(u);
+
+		// every 10 minutes update a database
+		if(st_clk::now() > ircuser_update)
+		{
+			ircuser u;
+			ircuser_vec db;
+
+			std::ifstream ifs(bot.getf("chanops.ircuser.file", "chanops-ircuser-db.txt"));
+
+			str line;
+			while(sgl(ifs, line))
+				if(siss(line) >> u)
+					db.push_back(u);
+			ifs.close();
+			for(const ircuser& u: ircusers)
+				if(std::find_if(db.begin(), db.end(), [&](const ircuser& iu){return iu == u;}) == db.end())
+					db.push_back(u);
+
+			std::sort(db.begin(), db.end(), [](const ircuser& u1, const ircuser& u2){return u1.host + u1.user + u1.nick < u2.host + u2.user + u2.nick;});
+			ircuser_vec_iter end = std::unique(db.begin(), db.end());
+			db.erase(end, db.end());
+
+			std::ofstream ofs(bot.getf("chanops.ircuser.file", "chanops-ircuser-db.txt"));
+
+			str sep;
+			for(const ircuser& u: db)
+				{ ofs << sep << (sss() << u).str(); sep = "\n"; }
+
+			ircuser_update = st_clk::now() + std::chrono::minutes(10);
+		}
 	}
 
 	if(msg.command == PRIVMSG)
@@ -1238,14 +1272,14 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 	else if(msg.command == KICK)
 		kick_event(msg);
 
-	bug("DUMPUNG USERS: - after");
-	for(const ircuser& u: ircusers)
-	{
-		bug_var(u.nick);
-		bug_var(u.user);
-		bug_var(u.host);
-		bug("-----------------------------");
-	}
+//	bug("DUMPUNG USERS: - after");
+//	for(const ircuser& u: ircusers)
+//	{
+//		bug_var(u.nick);
+//		bug_var(u.user);
+//		bug_var(u.host);
+//		bug("-----------------------------");
+//	}
 }
 
 bool ChanopsIrcBotPlugin::talk_event(const message& msg)
@@ -1255,7 +1289,7 @@ bool ChanopsIrcBotPlugin::talk_event(const message& msg)
 	str chan = msg.get_chan();
 
 	if(!nickname.empty() && !chan.empty())
-		store.set("seen." + nickname, chan + " " + std::to_string(std::time(0))
+		store.set("seen." + lower_copy(nickname), chan + " " + std::to_string(std::time(0))
 		+ " " + msg.get_trailing());
 
 	// !tell
@@ -1768,11 +1802,11 @@ bool ChanopsIrcBotPlugin::join_event(const message& msg)
 
 bool ChanopsIrcBotPlugin::enforce_dynamic_rules(const str& chan, const str& prefix, const str& nick)
 {
-	bug_func();
-	bug_var(chan);
-	bug_var(prefix);
-	bug_var(nick);
-	bug_var(chanops[chan]);
+//	bug_func();
+//	bug_var(chan);
+//	bug_var(prefix);
+//	bug_var(nick);
+//	bug_var(chanops[chan]);
 
 	if(!chanops[chan])
 		return true;
@@ -1822,10 +1856,10 @@ bool ChanopsIrcBotPlugin::enforce_dynamic_rules(const str& chan, const str& pref
 
 bool ChanopsIrcBotPlugin::enforce_static_rules(const str& chan, const str& prefix, const str& nick)
 {
-	bug_func();
-	bug_var(chan);
-	bug_var(prefix);
-	bug_var(nick);
+//	bug_func();
+//	bug_var(chan);
+//	bug_var(prefix);
+//	bug_var(nick);
 
 	if(!chanops[chan])
 		return true;

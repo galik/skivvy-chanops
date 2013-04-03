@@ -177,6 +177,7 @@ std::istream& operator>>(std::istream& is, ChanopsIrcBotPlugin::user_t& u)
 
 ChanopsIrcBotPlugin::ChanopsIrcBotPlugin(IrcBot& bot)
 : BasicIrcBotPlugin(bot)
+, smtp("outbound.mailhop.org")
 , store(bot.getf(STORE_FILE, STORE_FILE_DEFAULT))
 {
 	smtp.mailfrom = "<noreply@sookee.dyndns.org>";
@@ -217,6 +218,22 @@ bool ChanopsIrcBotPlugin::permit(const message& msg)
 
 	return false;
 }
+
+const str DEFAULT_EMAIL =
+R"(Hi $USER,
+
+This is an automated sign-up email from $BOTNAME.
+
+Your username is $USER
+Your password is $PASS
+
+Log in to $BOTNAME like this: /msg $BOTNAME login $USER $PASS
+
+Regards,
+
+- $BOTNAME
+)";
+
 
 bool ChanopsIrcBotPlugin::signup(const message& msg)
 {
@@ -292,21 +309,21 @@ bool ChanopsIrcBotPlugin::email_signup(const message& msg)
 	user_r ur;
 	siz retries = 4;
 
+	str body = DEFAULT_EMAIL;
 	sifs ifs(bot.getf("chanops.email.template", "chanops-email-template.txt"));
 	if(!ifs)
-	{
 		log("Unable to open email template: " << bot.getf("chanops.email.template", "chanops-email-template.txt"));
-		return bot.cmd_error(msg, "Failed to send email - signup aborted, please try again later.");
-	}
+	else
+	{
+		char c;
+		while(ifs.get(c))
+			body += c;
 
-	char c;
-	str body;
-	while(ifs.get(c))
-		body += c;
+	}
 
 	str boundary = gen_boundary();
 
-	replace(body, "$SUBJECT", "Skivvy's Email Sighnup");
+	replace(body, "$SUBJECT", "Skivvy's Email Signnup");
 	replace(body, "$FROM", "<oaskivvy@gmail.com>");
 	replace(body, "$TO", "<" + email + ">");
 	replace(body, "$USER", user);
@@ -417,6 +434,16 @@ str ChanopsIrcBotPlugin::get_userhost_username(const str& userhost)
 		if(u.userhost == userhost)
 			return u.user;
 	return "";
+}
+
+void ChanopsIrcBotPlugin::set_user_prop(const str& username, const str& key, const str& val)
+{
+	store.set("user." + username + "." + key, val);
+}
+
+str ChanopsIrcBotPlugin::get_user_prop(const str& username, const str& key)
+{
+	return store.get("user." + username + "." + key);
 }
 
 ChanopsIrcBotPlugin::status ChanopsIrcBotPlugin::create_custom_group(const str& group)
@@ -645,8 +672,8 @@ bool ChanopsIrcBotPlugin::ban(const message& msg)
 		}
 
 		str reason;
-		sgl(iss, reason);
-		reason = "Banned by " + msg.get_nickname() + ": " + reason;
+		if(!sgl(iss, reason))
+			reason = "Banned by " + msg.get_nickname() + ": " + reason;
 		bug_var(reason);
 
 		if(!nick_ban && !user_ban && !host_ban)
@@ -707,14 +734,14 @@ bool ChanopsIrcBotPlugin::ban(const message& msg)
 	return true;
 }
 
-bool ChanopsIrcBotPlugin::seen(const message& msg)
+bool ChanopsIrcBotPlugin::heard(const message& msg)
 {
 	BUG_COMMAND(msg);
 	//---------------------------------------------------
 	//                  line: :SooKee!angelic4@192.168.0.54 PRIVMSG #skivvy :!ban Monixa
 	//                prefix: SooKee!angelic4@192.168.0.54
 	//               command: PRIVMSG
-	//                params:  #skivvy :!seen Monixa
+	//                params:  #skivvy :!heard Monixa
 	// get_servername()     :
 	// get_nickname()       : SooKee
 	// get_user()           : angelic4
@@ -727,21 +754,21 @@ bool ChanopsIrcBotPlugin::seen(const message& msg)
 	// get_chan()           : #skivvy
 	//---------------------------------------------------
 
-	static const str prompt = IRC_BOLD + IRC_COLOR + IRC_Yellow + "seen"
+	static const str prompt = IRC_BOLD + IRC_COLOR + IRC_Yellow + "heard"
 		+ IRC_COLOR + IRC_Black + ": " + IRC_NORMAL;
 
 	if(!permit(msg))
 		return false;
 
 	str nick = msg.get_user_params();
-	str info = store.get("seen." + lower_copy(nick));
+	str info = store.get("heard." + lower_copy(nick));
 	bug_var(info);
 
 	std::time_t utime;
 	str chan, text;
 	if(!sgl(siss(info) >> chan >> utime >> std::ws, text))
 	{
-		bot.fc_reply(msg, prompt + "Nick " + nick + " has not been seen.");
+		bot.fc_reply(msg, prompt + "Nick " + nick + " has not been heard.");
 		return true;
 	}
 
@@ -751,7 +778,7 @@ bool ChanopsIrcBotPlugin::seen(const message& msg)
 	str time = oss.str();
 	trim(time);
 	bot.fc_reply(msg, prompt + IRC_BOLD + nick
-		+ IRC_NORMAL + " was last seen "
+		+ IRC_NORMAL + " was last heard "
 		+ IRC_BOLD + time
 		+ IRC_NORMAL+ " ago in "
 		+ IRC_BOLD + chan
@@ -769,7 +796,7 @@ bool ChanopsIrcBotPlugin::tell(const message& msg)
 	//                  line: :SooKee!angelic4@192.168.0.54 PRIVMSG #skivvy :!ban Monixa
 	//                prefix: SooKee!angelic4@192.168.0.54
 	//               command: PRIVMSG
-	//                params:  #skivvy :!seen Monixa
+	//                params:  #skivvy :!heard Monixa
 	// get_servername()     :
 	// get_nickname()       : SooKee
 	// get_user()           : angelic4
@@ -1020,7 +1047,7 @@ bool ChanopsIrcBotPlugin::cookie(const message& msg, int num)
 		store.set("cookies." + nick, store.get("cookies." + nick, 0) + num);
 		if(num < 0)
 			bot.fc_reply(msg, REPLY_PROMPT + msg.get_nickname() + " has taken "
-				+ std::to_string(num) + " cookie" + (num>1?"s":"") + " from " + nick + ".");
+				+ std::to_string(-num) + " cookie" + (-num>1?"s":"") + " from " + nick + ".");
 		else
 			bot.fc_reply(msg, REPLY_PROMPT + msg.get_nickname() + " has given "
 				+ std::to_string(num) + " cookie" + (num>1?"s":"") + " to " + nick + ".");
@@ -1046,7 +1073,7 @@ bool ChanopsIrcBotPlugin::initialize()
 		, {"!banlist", G_OPER}
 		, {"!unban", G_OPER}
 		, {"!votekick", G_OPER}
-		, {"!seen", G_ANY}
+		, {"!heard", G_ANY}
 		, {"!tell", G_ANY}
 		, {"!cookies", G_ANY}
 		, {"!cookie++", G_OPER}
@@ -1096,7 +1123,7 @@ bool ChanopsIrcBotPlugin::initialize()
 	add
 	({
 		"register" // no ! indicated PM only command
-		, "register <username> <password> <password>"
+		, "register <username> <email@address> <email@address>"
 		, [&](const message& msg){ email_signup(msg); }
 	});
 	add
@@ -1131,9 +1158,9 @@ bool ChanopsIrcBotPlugin::initialize()
 	});
 	add
 	({
-		"!seen"
-		, "!seen <nick> - When did <nick> last say something?"
-		, [&](const message& msg){ seen(msg); }
+		"!heard"
+		, "!heard <nick> - When did <nick> last say something?"
+		, [&](const message& msg){ heard(msg); }
 	});
 	add
 	({
@@ -1144,7 +1171,7 @@ bool ChanopsIrcBotPlugin::initialize()
 	add
 	({
 		"!ban"
-		, "!ban <nick>|<regex> - ban either a registered user OR a regex match on userhost."
+		, "!ban <nick>|<wildcard> - ban either a registered user OR a wildecard match on user prefix."
 		, [&](const message& msg){ ban(msg); }
 	});
 	add
@@ -1193,7 +1220,6 @@ void ChanopsIrcBotPlugin::exit()
 }
 
 // INTERFACE: IrcBotMonitor
-
 void ChanopsIrcBotPlugin::event(const message& msg)
 {
 //	BUG_COMMAND(msg);
@@ -1288,8 +1314,8 @@ bool ChanopsIrcBotPlugin::talk_event(const message& msg)
 	str userhost = msg.get_userhost();
 	str chan = msg.get_chan();
 
-	if(!nickname.empty() && !chan.empty())
-		store.set("seen." + lower_copy(nickname), chan + " " + std::to_string(std::time(0))
+	if(!nickname.empty() && !chan.empty() && msg.get_trailing().find("\001ACTION "))
+		store.set("heard." + lower_copy(nickname), chan + " " + std::to_string(std::time(0))
 		+ " " + msg.get_trailing());
 
 	// !tell

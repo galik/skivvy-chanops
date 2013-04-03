@@ -249,7 +249,7 @@ private:
 	bool ban(const message& msg);
 	bool banlist(const message& msg);
 	bool unban(const message& msg);
-	bool seen(const message& msg);
+	bool heard(const message& msg);
 	bool tell(const message& msg);
 	bool talk_event(const message& msg);
 	bool name_event(const message& msg);
@@ -278,6 +278,8 @@ public:
 	// Plugin API
 	bool is_userhost_logged_in(const str& userhost);
 	str get_userhost_username(const str& userhost);
+	void set_user_prop(const str& username, const str& key, const str& val);
+	str get_user_prop(const str& username, const str& key);
 
 	enum class status
 	{

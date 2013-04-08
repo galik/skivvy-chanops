@@ -542,7 +542,7 @@ bool ChanopsIrcBotPlugin::banlist(const message& msg)
 	str_vec bans = store.get_vec("ban");
 
 	if(bans.empty())
-		bot.fc_reply(msg, prompt + " there are no bans.");
+		bot.fc_reply_pm(msg, prompt + " there are no bans.");
 	else
 	{
 		const siz size = bans.size();
@@ -553,7 +553,7 @@ bool ChanopsIrcBotPlugin::banlist(const message& msg)
 		bug_var(start);
 		bug_var(end);
 
-		bot.fc_reply(msg, prompt + IRC_UNDERLINE + IRC_BOLD + "Listing #" + std::to_string(n)
+		bot.fc_reply_pm(msg, prompt + IRC_UNDERLINE + IRC_BOLD + "Listing #" + std::to_string(n)
 			+ " of " + std::to_string((size + 9)/10)
 			+ IRC_NORMAL + " (from " + std::to_string(start + 1) + " to "
 			+ std::to_string(end) + " of " + std::to_string(size) + ")");
@@ -562,7 +562,7 @@ bool ChanopsIrcBotPlugin::banlist(const message& msg)
 		{
 			soss oss;
 			oss << IRC_BOLD << (i + 1) << ": " << IRC_NORMAL << bans[i];
-			bot.fc_reply(msg, prompt + oss.str());
+			bot.fc_reply_pm(msg, prompt + oss.str());
 		}
 	}
 

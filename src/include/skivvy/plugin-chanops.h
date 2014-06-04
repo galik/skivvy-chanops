@@ -37,11 +37,14 @@ http://www.gnu.org/licenses/gpl-2.0.html
 #include <mutex>
 #include <map>
 
+#include <sookee/types.h>
+
 #include <skivvy/store.h>
 #include <skivvy/mail.h>
 
 namespace skivvy { namespace ircbot {
 
+using namespace sookee::types;
 using namespace skivvy::email;
 using namespace skivvy::utils;
 
@@ -102,27 +105,31 @@ typedef std::pair<ircuser_set_iter, bool> ircuser_set_pair;
 typedef std::vector<ircuser> ircuser_vec;
 typedef ircuser_vec::iterator ircuser_vec_iter;
 
+inline
 ircuser_set_iter find_by_nick(const ircuser_set& s, const str& nick)
 {
 	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return nick == u.nick; });
 }
 
+inline
 ircuser_set_iter find_by_user(const ircuser_set& s, const str& user)
 {
 	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return user == u.user; });
 }
 
+inline
 bool found_by_nick(const ircuser_set& s, const str& nick)
 {
 	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return nick == u.nick; }) != s.end();
 }
 
+inline
 bool found_by_user(const ircuser_set& s, const str& user)
 {
 	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return user == u.user; }) != s.end();
 }
 
-class ChanopsIrcBotPlugin _final_
+class ChanopsIrcBotPlugin
 : public BasicIrcBotPlugin
 , public IrcBotMonitor
 {
@@ -176,7 +183,8 @@ public:
 
 		user_t():login_time(0) {}
 		user_t(const message& msg, const user_r& ur)
-		: userhost(msg.get_userhost()), user(ur.user)
+		: login_time(0)
+		, userhost(msg.get_userhost()), user(ur.user)
 		, nick(msg.get_nick()), groups(ur.groups)
 		{}
 
@@ -307,6 +315,6 @@ public:
 	virtual void event(const message& msg) _override_;
 };
 
-}} // sookee::ircbot
+}} // skivvy::ircbot
 
 #endif // _SOOKEE_IRCBOT_CHANOPS_H_

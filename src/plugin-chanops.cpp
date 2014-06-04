@@ -35,12 +35,11 @@ http://www.gnu.org/licenses/gpl-2.0.html
 #include <chrono>
 
 #include <sookee/str.h>
+#include <sookee/types.h>
 
 #include <skivvy/logrep.h>
-#include <skivvy/stl.h>
-#include <sookee/str.h>
-#include <sookee/types.h>
-#include <skivvy/ios.h>
+#include <sookee/stl.h>
+#include <sookee/ios.h>
 #include <skivvy/irc-constants.h>
 #include <skivvy/irc.h>
 #include <skivvy/utils.h>
@@ -51,6 +50,7 @@ IRC_BOT_PLUGIN(ChanopsIrcBotPlugin);
 PLUGIN_INFO("chanops", "Channel Operations", "1.0-beta");
 
 using namespace skivvy;
+using namespace sookee;
 using namespace skivvy::irc;
 using namespace sookee::types;
 using namespace skivvy::utils;
@@ -59,11 +59,11 @@ using namespace sookee::string;
 const str STORE_FILE = "chanops.store.file";
 const str STORE_FILE_DEFAULT = "chanops-store.txt";
 
-static const str BAN_FILE = "chanops.ban.file";
-static const str BAN_FILE_DEFAULT = "chanops-bans.txt";
-
-static const str USER_FILE = "chanops.user.file";
-static const str USER_FILE_DEFAULT = "chanops-users.txt";
+//static const str BAN_FILE = "chanops.ban.file";
+//static const str BAN_FILE_DEFAULT = "chanops-bans.txt";
+//
+//static const str USER_FILE = "chanops.user.file";
+//static const str USER_FILE_DEFAULT = "chanops-users.txt";
 
 const str GREET_JOINERS_VEC = "chanops.greet.active";
 
@@ -1950,7 +1950,7 @@ bool ChanopsIrcBotPlugin::enforce_static_rules(const str& chan, const str& prefi
 				irc->mode(chan, "+v", nick);
 
 	// wild voices
-	for(const str& s: bot.get_vec(CHANOPS_WILD_VOICfE_VEC))
+	for(const str& s: bot.get_vec(CHANOPS_WILD_VOICE_VEC))
 		if(siss(s) >> chan_pattern >> who_pattern)
 			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
 				irc->mode(chan, "+v", nick);

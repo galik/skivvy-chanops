@@ -64,20 +64,77 @@ CHANOPS_GROUP(VOICED);
 CHANOPS_GROUP(OPPED);
 CHANOPS_GROUP(BANNED);
 
+struct ircuser
+{
+	str nick;
+	str user;
+	str host;
+
+	bool operator<(const ircuser& u) const { return user + host < u.user + u.host; }
+	bool operator==(const ircuser& u) const { return nick + user + host == u.nick + u.user + u.host; }
+
+	friend sss& operator<<(sss& ss, const ircuser& u)
+	{
+		ss << u.host << ' ' << u.user << ' ' << u.nick;
+		return ss;
+	}
+
+	friend sss& operator<<(sss&& ss, const ircuser& u)
+	{
+		return ss << u;
+	}
+
+	friend siss& operator>>(siss& ss, ircuser& u)
+	{
+		ss >> u.host >> u.user >> u.nick;
+		return ss;
+	}
+
+	friend siss& operator>>(siss&& ss, ircuser& u)
+	{
+		return ss >> u;
+	}
+};
+
+typedef std::set<ircuser> ircuser_set;
+typedef ircuser_set::iterator ircuser_set_iter;
+typedef std::pair<ircuser_set_iter, bool> ircuser_set_pair;
+typedef std::vector<ircuser> ircuser_vec;
+typedef ircuser_vec::iterator ircuser_vec_iter;
+
+ircuser_set_iter find_by_nick(const ircuser_set& s, const str& nick)
+{
+	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return nick == u.nick; });
+}
+
+ircuser_set_iter find_by_user(const ircuser_set& s, const str& user)
+{
+	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return user == u.user; });
+}
+
+bool found_by_nick(const ircuser_set& s, const str& nick)
+{
+	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return nick == u.nick; }) != s.end();
+}
+
+bool found_by_user(const ircuser_set& s, const str& user)
+{
+	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return user == u.user; }) != s.end();
+}
+
 class ChanopsIrcBotPlugin _final_
 : public BasicIrcBotPlugin
 , public IrcBotMonitor
 {
 private:
-	typedef std::map<str, str> nick_map;
-	typedef std::pair<const str, str> nick_pair;
 
 	SMTP smtp;
 
 	std::mutex store_mtx;
 
-	std::mutex nicks_mtx;
-	nick_map nicks; // nick -> userhost
+	std::mutex ircusers_mtx;
+	ircuser_set ircusers; // nick -> userhost
+	st_time_point ircuser_update;
 
 	// tack back server stuff
 	str_set tb_ops;
@@ -161,24 +218,24 @@ private:
 	str_siz_map vote_f1;
 	str_siz_map vote_f2;
 	str_set_map voted; // who already voted
+	bool vote_track_nick = false;
 
 	bool votekick(const message& msg);
 	bool f1(const message& msg);
 	bool f2(const message& msg);
-	bool ballot(const str& chan, const str& nick, const st_time_point& end);
+	bool ballot(const str& chan, const str& user, const str& oldnick, const st_time_point& end);
+	bool cookie(const message& msg, int num);
 
 	bool login(const message& msg);
 	//void apply_acts(const str& id);
 	void apply_acts(const user_t& u);
 
 
-	bool enforce_rules(const str& chan);
-	bool enforce_rules(const str& chan, const str& nick);
-
 	/**
 	 * Rules found in the config file
 	 */
 	bool enforce_static_rules(const str& chan, const str& prefix, const str& nick);
+
 	/**
 	 * Rules found in the persistant store
 	 */
@@ -192,7 +249,7 @@ private:
 	bool ban(const message& msg);
 	bool banlist(const message& msg);
 	bool unban(const message& msg);
-	bool seen(const message& msg);
+	bool heard(const message& msg);
 	bool tell(const message& msg);
 	bool talk_event(const message& msg);
 	bool name_event(const message& msg);
@@ -221,6 +278,8 @@ public:
 	// Plugin API
 	bool is_userhost_logged_in(const str& userhost);
 	str get_userhost_username(const str& userhost);
+	void set_user_prop(const str& username, const str& key, const str& val);
+	str get_user_prop(const str& username, const str& key);
 
 	enum class status
 	{

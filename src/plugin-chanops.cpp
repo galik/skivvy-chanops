@@ -763,30 +763,51 @@ bool ChanopsIrcBotPlugin::heard(const message& msg)
 		return false;
 
 	str nick = msg.get_user_params();
-	str info = store.get("heard." + lower_copy(nick));
-	bug_var(info);
 
-	std::time_t utime;
-	str chan, text;
-	if(!sgl(siss(info) >> chan >> utime >> std::ws, text))
+	str_set keys;
+	if(store.has("heard." + lower_copy(nick)))
+		keys.insert("heard." + lower_copy(nick));
+	else
 	{
-		bot.fc_reply(msg, prompt + "Nick " + nick + " has not been heard.");
-		return true;
+		keys = store.get_keys_if_wild("heard." + lower_copy(nick));
 	}
 
-	soss oss;
-	print_duration(st_clk::now() - st_clk::from_time_t(utime), oss);
+	if(keys.empty())
+		bot.fc_reply(msg, prompt + nick + " does not match any names");
+	else if(keys.size() > 4)
+		bot.fc_reply(msg, prompt + nick + " matches too many names");
+	else
+	{
+		for(const auto& key: keys)
+		{
+//			if(key.size() > sizeof("heard."))
+//				nick = key.substr(sizeof("heard.") - 1);
+			str info = store.get(key);
+			bug_var(info);
 
-	str time = oss.str();
-	trim(time);
-	bot.fc_reply(msg, prompt + IRC_BOLD + nick
-		+ IRC_NORMAL + " was last heard "
-		+ IRC_BOLD + time
-		+ IRC_NORMAL+ " ago in "
-		+ IRC_BOLD + chan
-		+ IRC_NORMAL + " saying: \""
-		+ IRC_BOLD + text
-		+ IRC_NORMAL + "\"");
+			std::time_t utime;
+			str chan, text;
+			if(!sgl(siss(info) >> nick >> chan >> utime >> std::ws, text))
+			{
+				bot.fc_reply(msg, prompt + "Nick " + nick + " has not been heard.");
+				return true;
+			}
+
+			soss oss;
+			print_duration(st_clk::now() - st_clk::from_time_t(utime), oss);
+
+			str time = oss.str();
+			trim(time);
+			bot.fc_reply(msg, prompt + IRC_BOLD + nick
+				+ IRC_NORMAL + " was last heard "
+				+ IRC_BOLD + time
+				+ IRC_NORMAL+ " ago in "
+				+ IRC_BOLD + chan
+				+ IRC_NORMAL + " saying: \""
+				+ IRC_BOLD + text
+				+ IRC_NORMAL + "\"");
+		}
+	}
 
 	return true;
 }
@@ -1106,6 +1127,25 @@ bool ChanopsIrcBotPlugin::initialize()
 		}
 	}
 
+	// Update store version
+	uns version = store.get("version", 0U);
+
+	if(version == 0)
+	{
+		// upgrade to #1
+		str_set keys = store.get_keys_if_wild("heard.*");
+		for(const auto& key: keys)
+		{
+			str nick = "<none>";
+			if(key.size() > sizeof("heard."))
+				nick = key.substr(sizeof("heard.") - 1);
+			store.set(key, nick + ' ' + store.get(key, ""));
+		}
+		++version;
+		store.set("version", version);
+	}
+
+
 	// persistent logins
 	user_t u;
 	const str_vec logged_in = store.get_vec("logged-in");
@@ -1317,8 +1357,9 @@ bool ChanopsIrcBotPlugin::talk_event(const message& msg)
 	str chan = msg.get_chan();
 
 	if(!nickname.empty() && !chan.empty() && msg.get_trailing().find("\001ACTION "))
-		store.set("heard." + lower_copy(nickname), chan + " " + std::to_string(std::time(0))
-		+ " " + msg.get_trailing());
+		store.set("heard." + lower_copy(nickname)
+			, nickname + ' ' + chan + ' ' + std::to_string(std::time(0))
+				+ ' ' + msg.get_trailing());
 
 	// !tell
 
@@ -1681,7 +1722,7 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 		{
 			bug_var(s);
 			str chan_preg, who;
-			std::istringstream(s) >> chan_preg >> who;
+			siss(s) >> chan_preg >> who;
 			bug_var(chan_preg);
 			bug_var(who);
 			if(bot.preg_match(chan_preg, chan, true) && bot.wild_match(user, who))
@@ -1742,7 +1783,7 @@ bool ChanopsIrcBotPlugin::kick_event(const message& msg)
 	if(responses.empty())
 		return true;
 
-	siz idx = rand_int(0, responses.size() - 1);
+	uns idx = rand_int(0, responses.size() - 1);
 	bug_var(idx);
 
 	if(idx >= responses.size())
@@ -1838,7 +1879,6 @@ bool ChanopsIrcBotPlugin::enforce_dynamic_rules(const str& chan, const str& pref
 
 	if(!chanops[chan])
 		return true;
-
 
 	str chan_pattern, who_pattern, why;
 

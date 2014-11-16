@@ -54,7 +54,7 @@ using namespace sookee;
 using namespace skivvy::irc;
 using namespace sookee::types;
 using namespace skivvy::utils;
-using namespace sookee::string;
+using namespace sookee::utils;
 
 const str STORE_FILE = "chanops.store.file";
 const str STORE_FILE_DEFAULT = "chanops-store.txt";

@@ -67,6 +67,9 @@ CHANOPS_GROUP(VOICED);
 CHANOPS_GROUP(OPPED);
 CHANOPS_GROUP(BANNED);
 
+USING_MAP(str, siz, str_siz_map);
+USING_MAP(str, str_set, str_set_map);
+
 struct ircuser
 {
 	str nick;

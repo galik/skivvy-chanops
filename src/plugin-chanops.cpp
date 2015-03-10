@@ -1115,6 +1115,7 @@ bool ChanopsIrcBotPlugin::cookie(const message& msg, int num)
 
 bool ChanopsIrcBotPlugin::initialize()
 {
+	bug_func();
 //	std::ifstream ifs(bot.getf(BAN_FILE, BAN_FILE_DEFAULT));
 	perms =
 	{

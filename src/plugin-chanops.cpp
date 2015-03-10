@@ -1139,6 +1139,8 @@ bool ChanopsIrcBotPlugin::initialize()
 	{
 		str user, pass, email, list;
 
+		bug_var(init);
+
 		if(!sgl(siss(init) >> user >> pass >> email >> std::ws, list))
 			continue;
 

@@ -1135,10 +1135,12 @@ bool ChanopsIrcBotPlugin::initialize()
 	// chanops.init.user: <user> <pass> <PERM> *( "," <PERM> )
 	auto init_users = bot.get_vec("chanops.init.user");
 	bug_var(init_users.size());
-	for(const str& init: init_users)
+//	for(const str& init: init_users)
+	for(siz i = 0; i < init_users.size(); ++i)
 	{
 		str user, pass, email, list;
 
+		str init = init_users[i];
 		bug_var(init);
 
 		if(!sgl(siss(init) >> user >> pass >> email >> std::ws, list))

@@ -187,6 +187,37 @@ ChanopsIrcBotPlugin::ChanopsIrcBotPlugin(IrcBot& bot)
 
 ChanopsIrcBotPlugin::~ChanopsIrcBotPlugin() {}
 
+// Permissions:
+//     +v - Enables use of the voice/devoice commands.
+//     +V - Enables automatic voice.
+//     +o - Enables use of the op/deop commands.
+//     +O - Enables automatic op.
+//     +s - Enables use of the set command.
+//     +i - Enables use of the invite and getkey commands.
+//     +r - Enables use of the unban command.
+//     +R - Enables use of the recover, sync and clear commands.
+//     +f - Enables modification of channel access lists.
+//     +t - Enables use of the topic and topicappend commands.
+//     +A - Enables viewing of channel access lists.
+//     +S - Marks the user as a successor.
+//     +F - Grants full founder access.
+//     +b - Enables automatic kickban.
+//     +e - Exempts from +b and enables unbanning self.
+
+// Syntax: FLAGS <channel> [target] [flags]
+// Entry Nickname/Host          Flags
+// ----- ---------------------- -----
+// 1     Galik                  +AFRefiorstv (FOUNDER) (#autotools) [modified 5y 51w 4d ago, on Feb 18 18:45:37 2009]
+// 2     jbailey                +AFRefiorstv (FOUNDER) (#autotools) [modified 5y 51w 4d ago, on Feb 18 19:49:25 2009]
+
+// /msg chanserv flags #autotools Galik
+// -ChanServ- Flags for Galik in #autotools are +AFRefiorstv.
+bool ChanopsIrcBotPlugin::auto_login(const message& msg)
+{
+	irc->say("chanserv", "flags " + msg.get_chan() + " " + msg.get_nick());
+	return true;
+}
+
 bool ChanopsIrcBotPlugin::permit(const message& msg)
 {
 //	BUG_COMMAND(msg);
@@ -684,14 +715,11 @@ bool ChanopsIrcBotPlugin::ban(const message& msg)
 		str user;
 		str host;
 
-//		const auto& i = std::find_if(ircusers.begin(), ircusers.end(), find_nick(nick));
 		ircuser_set_iter i;
 		if((i = find_by_nick(ircusers, nick)) != ircusers.end())
-//		if((i = std::find_if(ircusers.begin(), ircusers.end(), find_nick(nick))) != ircusers.end())
 		{
 			user = i->user;
 			host = i->host;
-//			sgl(sgl(siss(ircusers[nick]), user, '@'), host);
 		}
 
 
@@ -1339,6 +1367,8 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 		mode_event(msg);
 	else if(msg.command == KICK)
 		kick_event(msg);
+	else if(msg.command == NOTICE)
+		notice_event(msg);
 
 //	bug("DUMPUNG USERS: - after");
 //	for(const ircuser& u: ircusers)
@@ -1350,11 +1380,135 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 //	}
 }
 
+// << PRIVMSG chanserv :flags #autotools Galik
+// >> :ChanServ!ChanServ@services. NOTICE Galik :+Flags for Galik in #autotools are +AFRefiorstv.
+
+bool ChanopsIrcBotPlugin::notice_event(const message& msg)
+{
+	bug_func();
+	bug_msg(msg);
+	// -----> bool skivvy::ircbot::ChanopsIrcBotPlugin::notice_event(const skivvy::ircbot::message&) [1] {8: 0x7f2784c47950}
+	//                  line: :ChanServ!ChanServ@services. NOTICE Skivvy :Flags for Galik in #autotools are +AFRefiorstv.
+	//                prefix: ChanServ!ChanServ@services.
+	//               command: NOTICE
+	//                params:  Skivvy :Flags for Galik in #autotools are +AFRefiorstv.
+	// get_servername()     :
+	// get_nickname()       : ChanServ
+	// get_user()           : ChanServ
+	// get_host()           : services.
+	// param                : Skivvy
+	// param                : Flags for Galik in #autotools are +AFRefiorstv.
+	// middle               : Skivvy
+	// trailing             : Flags for Galik in #autotools are +AFRefiorstv.
+	// get_nick()           : ChanServ
+	// get_chan()           :
+	// get_user_cmd()       : Flags
+	// get_user_params()    : for Galik in #autotools are +AFRefiorstv.
+	// <----- bool skivvy::ircbot::ChanopsIrcBotPlugin::notice_event(const skivvy::ircbot::message&) [1] {8: 0x7f2784c47950}
+
+	// -----> bool skivvy::ircbot::ChanopsIrcBotPlugin::notice_event(const skivvy::ircbot::message&) [1] {8: 0x7f2784c47950}
+	//                  line: :ChanServ!ChanServ@services. NOTICE Skivvy :No flags for zadock in #autotools.
+	//                prefix: ChanServ!ChanServ@services.
+	//               command: NOTICE
+	//                params:  Skivvy :No flags for zadock in #autotools.
+	// get_servername()     :
+	// get_nickname()       : ChanServ
+	// get_user()           : ChanServ
+	// get_host()           : services.
+	// param                : Skivvy
+	// param                : No flags for zadock in #autotools.
+	// middle               : Skivvy
+	// trailing             : No flags for zadock in #autotools.
+	// get_nick()           : ChanServ
+	// get_chan()           :
+	// get_user_cmd()       : No
+	// get_user_params()    : flags for zadock in #autotools.
+	// <----- bool skivvy::ircbot::ChanopsIrcBotPlugin::notice_event(const skivvy::ircbot::message&) [1] {8: 0x7f2784c47950}
+
+	if(msg.get_nick() == "ChanServ")
+	{
+		if(msg.get_user_cmd() == "Flags")
+		{
+			// auto_login?
+			str skip, nick, chan, flags;
+			if(!(siss(msg.get_user_params()) >> skip >> nick >> skip >> chan >> skip >> flags))
+				log("ERROR: parsing chanserv Flags notice: " << msg.get_user_params());
+			else
+			{
+				trim(nick, "");
+				trim(chan, "");
+				trim(flags, "");
+
+				bug_var(nick);
+				bug_var(chan);
+				bug_var(flags);
+
+				if(flags.find_first_of("o") != str::npos)
+				{
+					bug("op found");
+					user_t u;
+					auto login = users.begin();
+
+					for(; login != users.end(); ++login)
+					{
+						bug_var(login->nick);
+						if(login->nick == nick)
+							break;
+					}
+
+					if(login == users.end()) // not logged in by other means
+					{
+						bug("attempting to log in");
+						for(auto&& iu: ircusers)
+						{
+							bug_var(iu.nick);
+							if(iu.nick != nick)
+								continue;
+
+							bug("found iu.nick");
+
+							u.login_time = std::time(0);
+							u.userhost = iu.user + "@" + iu.host;
+							u.user = iu.user;
+							u.chan_flags = flags;
+							u.groups = {G_USER, G_OPER};
+							users.insert(u); // logged in
+							log("CHANSERV AUTO LOGIN: logged in: " << u);
+							break;
+						}
+					}
+					else
+					{
+						// update info
+						u = *login;
+						users.erase(login);
+						u.chan_flags = flags;
+						users.insert(u);
+						log("CHANSERV AUTO LOGIN: modified login: " << u);
+					}
+				}
+			}
+		}
+	}
+
+//	for(auto&& u: users)
+//		if(u.nick == msg.get_nick())
+	return true;
+}
+
 bool ChanopsIrcBotPlugin::talk_event(const message& msg)
 {
 	str nickname = msg.get_nickname();
 	str userhost = msg.get_userhost();
 	str chan = msg.get_chan();
+
+	if(lower_copy(msg.get_nick()) == "chanserv")
+	{
+		// Is this an auto login event?
+		// Flags for Galik in #autotools are +AFRefiorstv
+		bug("POTENTIAL AUTO LOGIN EVENT");
+		bug_msg(msg);
+	}
 
 	if(!nickname.empty() && !chan.empty() && msg.get_trailing().find("\001ACTION "))
 		store.set("heard." + lower_copy(nickname)
@@ -1827,6 +1981,8 @@ bool ChanopsIrcBotPlugin::join_event(const message& msg)
 	//--------------------------------
 
 	// Auto OP/VOICE/MODE/bans etc..
+	if(bot.get("server.feature.chanserv", false))
+		auto_login(msg); //
 	bug_var(msg.get_chan());
 	bug_var(msg.get_userhost());
 	bug_var(msg.get_nickname());

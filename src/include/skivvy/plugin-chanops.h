@@ -183,6 +183,7 @@ public:
 		str user; // the user by which we logged in as
 		str nick; // current nick
 		str_set groups;
+		str chan_flags;
 
 		user_t():login_time(0) {}
 		user_t(const message& msg, const user_r& ur)
@@ -221,6 +222,9 @@ private:
 
 	bool signup(const message& msg);
 	bool email_signup(const message& msg);
+
+	// log a person in based on channel flags
+	bool auto_login(const message& msg);
 
 	std::mutex vote_mtx;
 	std::map<str, bool> vote_in_progress;
@@ -263,6 +267,7 @@ private:
 	bool heard(const message& msg);
 	bool tell(const message& msg);
 	bool talk_event(const message& msg);
+	bool notice_event(const message& msg);
 	bool name_event(const message& msg);
 	bool join_event(const message& msg);
 	bool kick_event(const message& msg);

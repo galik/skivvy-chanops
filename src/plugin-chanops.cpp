@@ -1133,12 +1133,18 @@ bool ChanopsIrcBotPlugin::initialize()
 	};
 
 	// chanops.init.user: <user> <pass> <PERM> *( "," <PERM> )
-	for(const str& init: bot.get_vec("chanops.init.user"))
+	auto init_users = bot.get_vec("chanops.init.user");
+	bug_var(init_users.size());
+	for(const str& init: init_users)
 	{
 		str user, pass, email, list;
 
 		if(!sgl(siss(init) >> user >> pass >> email >> std::ws, list))
 			continue;
+
+		bug_var(user);
+		bug_var(pass);
+		bug_var(email);
 
 		if(!store.has("user." + user))
 		{

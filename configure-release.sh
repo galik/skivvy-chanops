@@ -2,20 +2,18 @@
 
 top_dir=$(pwd)
 
-DEV_HOME=$HOME/dev
+PREFIX=$HOME
+LIBDIR=$PREFIX/lib
 
-export CXX=g++
-#export CXX=clang++
+export PKG_CONFIG_PATH=$LIBDIR/pkgconfig
 
-CXXFLAGS="$CXXFLAGS -g0"
-CXXFLAGS="$CXXFLAGS -O3"
-export CXXFLAGS
+export CXXFLAGS=-g0 -O3 -D NDEBUG
 
 rm -fr $top_dir/build-release
 mkdir -p $top_dir/build-release
-cd $top_dir/build-release
 
-$top_dir/configure --prefix=$HOME --enable-silent-rules
+cd $top_dir/build-release
+$top_dir/configure --prefix=$PREFIX --enable-silent-rules
 
 
 

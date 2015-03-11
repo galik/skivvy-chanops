@@ -35,7 +35,8 @@ http://www.gnu.org/licenses/gpl-2.0.html
 #include <chrono>
 
 #include <sookee/str.h>
-#include <sookee/types.h>
+#include <sookee/types/basic.h>
+#include <sookee/types/vec.h>
 
 #include <skivvy/logrep.h>
 #include <sookee/stl.h>
@@ -491,6 +492,8 @@ ChanopsIrcBotPlugin::status ChanopsIrcBotPlugin::create_custom_group(const str& 
 
 bool ChanopsIrcBotPlugin::add_user_to_custom_group(const str& user, const str& group)
 {
+	(void) user;
+	(void) group;
 	return true;
 }
 

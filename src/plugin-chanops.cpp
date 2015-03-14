@@ -221,13 +221,18 @@ bool ChanopsIrcBotPlugin::auto_login(const message& msg)
 
 bool ChanopsIrcBotPlugin::permit(const message& msg)
 {
-//	BUG_COMMAND(msg);
+	BUG_COMMAND(msg);
 
-	const str& group = perms[msg.get_user_cmd()];
+	auto found = perms.find(msg.get_user_cmd());
 
-	// not accessible via exec(msg);
-	if(group.empty())
+	if(found == perms.end())
+	{
+		// not accessible via exec(msg);
+		bot.fc_reply_pm(msg, "ERROR: This command has no permit.");
 		return false;
+	}
+
+	const str group = found->second;
 
 	// anyone can call
 	if(group == G_ANY)
@@ -236,12 +241,18 @@ bool ChanopsIrcBotPlugin::permit(const message& msg)
 	bool in = false;
 	for(const user_t& u: users)
 	{
+		bug_var(u.user);
+		bug_var(u.userhost);
 		if(u.userhost != msg.get_userhost())
 			continue;
 		in = true;
+		bug_var(group);
 		for(const str& g: u.groups)
+		{
+			bug_var(g);
 			if(g == group)
 				return true;
+		}
 		break;
 	}
 
@@ -436,7 +447,11 @@ bool ChanopsIrcBotPlugin::login(const message& msg)
 		store.set_from("logged-in", pusers);
 	}
 	else
-	{ soss oss; oss << u; store.add("logged-in", oss.str()); }
+	{
+		soss oss;
+		oss << u;
+		store.add("logged-in", oss.str());
+	}
 
 	str sep;
 	soss oss;

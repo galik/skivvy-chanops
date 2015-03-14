@@ -428,18 +428,24 @@ bool ChanopsIrcBotPlugin::login(const message& msg)
 
 	user_t u(msg, ur);
 	bug("got u");
+	bug_var(u.nick);
+	bug_var(u.user);
+	bug_var(u.userhost);
 
 	user_set::iterator ui;
 	if((ui = users.find(u)) != users.end() && ui->userhost == u.userhost)
 		return bot.cmd_error_pm(msg, "You are already logged in to " + bot.nick);
-
-	bug("got ui");
 
 	u.login_time = std::time(0);
 	users.insert(u);
 
 	if(ui != users.end()) // relogin new userhost
 	{
+		bug("got ui");
+		bug_var(ui->nick);
+		bug_var(ui->user);
+		bug_var(ui->userhost);
+
 		str_vec pusers = store.get_vec("logged-in");
 		for(str& puser: pusers)
 			if(siss(puser) >> u && u.user == ui->user)

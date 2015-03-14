@@ -454,6 +454,44 @@ bool ChanopsIrcBotPlugin::login(const message& msg)
 	return true;
 }
 
+bool args_check(const str_vec& args, uns size, const str& err)
+{
+	if(!args.size() == size)
+	{
+		log("ERROR: wrong number of parameters: " << args.size() << " expected: " << err);
+		return false;
+	}
+	return true;
+}
+
+str_vec ChanopsIrcBotPlugin::api(unsigned call, const str_vec& args)
+{
+	if(call == ChanopsApi::is_userhost_logged_in)
+	{
+		if(args_check(args, 1, "(str userhost)"))
+			if(is_userhost_logged_in(args[0]))
+				return {"true"};
+		return {};
+	}
+	else if(call == ChanopsApi::get_userhost_username)
+	{
+		if(args_check(args, 1, "(str userhost)"))
+			return {get_userhost_username(args[0])};
+	}
+	else if(call == ChanopsApi::set_user_prop)
+	{
+		if(args_check(args, 3, "(str username, str key, str val)"))
+			set_user_prop(args[0], args[1], args[2]);
+	}
+	else if(call == ChanopsApi::get_user_prop)
+	{
+		if(args_check(args, 2, "(str username, str key)"))
+			return {get_user_prop(args[0], args[1])};
+	}
+
+	return {};
+}
+
 bool ChanopsIrcBotPlugin::is_userhost_logged_in(const str& userhost)
 {
 	for(const user_t& u: users)

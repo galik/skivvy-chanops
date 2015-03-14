@@ -132,6 +132,14 @@ bool found_by_user(const ircuser_set& s, const str& user)
 	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return user == u.user; }) != s.end();
 }
 
+enum ChanopsApi : unsigned
+{
+	is_userhost_logged_in
+	, get_userhost_username
+	, set_user_prop
+	, get_user_prop
+};
+
 class ChanopsIrcBotPlugin
 : public BasicIrcBotPlugin
 , public IrcBotMonitor
@@ -287,15 +295,17 @@ private:
 //	void kick(str& nick);
 //	void ban(str& nick);
 
+	bool is_userhost_logged_in(const str& userhost);
+	str get_userhost_username(const str& userhost);
+	void set_user_prop(const str& username, const str& key, const str& val);
+	str get_user_prop(const str& username, const str& key);
+
 public:
 	ChanopsIrcBotPlugin(IrcBot& bot);
 	virtual ~ChanopsIrcBotPlugin();
 
 	// Plugin API
-	bool is_userhost_logged_in(const str& userhost);
-	str get_userhost_username(const str& userhost);
-	void set_user_prop(const str& username, const str& key, const str& val);
-	str get_user_prop(const str& username, const str& key);
+	virtual str_vec api(unsigned call, const str_vec& args = {});
 
 	enum class status
 	{

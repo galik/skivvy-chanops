@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source ${0%*.sh}.local 2> /dev/null
+source ${0%*.sh}.conf 2> /dev/null
 
 top_dir=$(pwd)
 

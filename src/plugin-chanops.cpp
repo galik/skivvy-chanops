@@ -437,6 +437,7 @@ bool ChanopsIrcBotPlugin::login(const message& msg)
 		return bot.cmd_error_pm(msg, "You are already logged in to " + bot.nick);
 
 	u.login_time = std::time(0);
+	users.erase(u);
 	users.insert(u);
 
 	if(ui != users.end()) // relogin new userhost

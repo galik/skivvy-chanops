@@ -19,19 +19,19 @@ AM_CXXFLAGS = $(GEN_FLAGS) $(DEF_FLAGS) -std=gnu++11
 PLUGIN_FLAGS = -Wl,-E
 
 plugin_include_HEADERS = \
-	$(srcdir)/include/skivvy/plugin-chanops.h
+	$(srcdir)/include/skivvy/plugin-fserver.h
 	
 plugin_library_LTLIBRARIES =  \
-	skivvy-plugin-chanops.la
+	skivvy-plugin-fserver.la
 
 # IrcBot plugins
-skivvy_plugin_chanops_la_SOURCES = plugin-chanops.cpp
-skivvy_plugin_chanops_la_LDFLAGS = -module -avoid-version $(PLUGIN_FLAGS)
-skivvy_plugin_chanops_la_LIBADD =  $(SOOKEE_LIBS) $(SKIVVY_LIBS) -L.libs
+skivvy_plugin_fserver_la_SOURCES = plugin-fserver.cpp
+skivvy_plugin_fserver_la_LDFLAGS = -module -avoid-version $(PLUGIN_FLAGS)
+skivvy_plugin_fserver_la_LIBADD =  $(SOOKEE_LIBS) $(SKIVVY_LIBS) -L.libs
 
-plugin_manuals_DATA = $(top_srcdir)/docs/chanops-manual.text
+plugin_manuals_DATA = $(top_srcdir)/docs/fserver-manual.text
 
-extra_DIST = $(top_srcdir)/docs/chanops-manual.text
+extra_DIST = $(top_srcdir)/docs/fserver-manual.text
 
 install-data-hook: $(plugin_library_LTLIBRARIES)
 	for m in $(plugin_library_LTLIBRARIES); do \

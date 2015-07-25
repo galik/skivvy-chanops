@@ -75,6 +75,23 @@ struct ircuser
 	str nick;
 	str user;
 	str host;
+	str flag;
+
+//	ircuser() {}
+	ircuser(std::initializer_list<str> il = {})
+	{
+		auto i = il.begin();
+		auto e = il.end();
+
+		if(i != e)
+			nick = *i++;
+		if(i != e)
+			user = *i++;
+		if(i != e)
+			host = *i++;
+		if(i != e)
+			flag = *i++;
+	}
 
 	bool operator<(const ircuser& u) const { return user + host < u.user + u.host; }
 	bool operator==(const ircuser& u) const { return nick + user + host == u.nick + u.user + u.host; }

@@ -478,7 +478,7 @@ bool ChanopsIrcBotPlugin::login(const message& msg)
 
 bool args_check(const str_vec& args, uns size, const str& err)
 {
-	if(!args.size() == size)
+	if(!(args.size() == size))
 	{
 		log("ERROR: wrong number of parameters: " << args.size() << " expected: " << err);
 		return false;
@@ -1147,7 +1147,7 @@ bool ChanopsIrcBotPlugin::cookie(const message& msg, int num)
 {
 	BUG_COMMAND(msg);
 	bug_var(num);
-	bug_var(permit(msg));
+//	bug_var(permit(msg));
 
 	if(!permit(msg))
 		return false;
@@ -1377,18 +1377,35 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 //		bug("-----------------------------");
 //	}
 
-	enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
-	enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
+//	enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
+//	enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
 
 	// update nicks if appropriate
 	str nickname = msg.get_nickname();
 	str user = msg.get_user();
 	str host = msg.get_host();
 
+	// debugging info
+	auto found = find_by_user(ircusers, user);
+	if(found != ircusers.end())
+	{
+		bug("= ircuser =======================");
+		bug_var(found->nick);
+		bug_var(found->flag);
+	}
+
 	if(!nickname.empty() && !user.empty() && !host.empty())
 	{
-		ircuser u{nickname, user, host};
 		lock_guard lock(ircusers_mtx);
+		ircuser u;
+		auto found = find_by_user(ircusers, user);
+		if(found != ircusers.end())
+			u = *found;
+
+		u.nick = nickname;
+		u.user = user;
+		u.host = host;
+
 		ircusers.erase(u);
 		ircusers.insert(u);
 
@@ -1649,8 +1666,16 @@ bool ChanopsIrcBotPlugin::nick_event(const message& msg)
 	// get_user_params()    :
 	//---------------------------------------------------
 
-	ircuser u{msg.get_nick(), msg.get_user(), msg.get_host()};
 	lock_guard lock(ircusers_mtx);
+	ircuser u;
+	auto found = find_by_user(ircusers, msg.get_user());
+	if(found != ircusers.end())
+		u = *found;
+
+	u.nick = msg.get_nickname();
+	u.user = msg.get_user();
+	u.host = msg.get_host();
+
 	ircusers.erase(u);
 	ircusers.insert(u);
 
@@ -1752,8 +1777,53 @@ bool ChanopsIrcBotPlugin::whoisuser_event(const message& msg)
 		}
 
 		{
-			ircuser u{params[1], params[2], params[3]};
 			lock_guard lock(ircusers_mtx);
+			ircuser u;
+			auto found = find_by_user(ircusers, params[2]);
+			if(found != ircusers.end())
+				u = *found;
+
+			u.nick = params[1];
+			u.user = params[2];
+			u.host = params[3];
+
+			ircusers.erase(u);
+			ircusers.insert(u);
+		}
+	}
+	else if(msg.command == RPL_WHOISCHANNELS)
+	{
+		if(params.size() != 3)
+		{
+			log("MESSAGE ERROR: Expected 3 params: " << msg.line);
+			return false;
+		}
+
+		bug_var(params[0]); // caller (skivvy)
+		bug_var(params[1]); // nick
+		bug_var(params[2]); // chaninfo
+
+		lock_guard lock(ircusers_mtx);
+		auto found = find_by_nick(ircusers, params[1]);
+		if(found != ircusers.end())
+			log("ERROR: expected ircuser in db: " << msg.line);
+		else
+		{
+			ircuser u = *found;
+			siss iss(params[2]); // @#skivvy @#openarenahelp +#openarena @#omfg
+			str chaninfo;
+			while(iss >> chaninfo)
+			{
+				if(chaninfo.empty())
+					continue;
+
+				u.flag.clear();
+
+				if(chaninfo[0] == '+')
+					u.flag += 'v';
+				else if(chaninfo[0] == '@')
+					u.flag += 'o';
+			}
 			ircusers.erase(u);
 			ircusers.insert(u);
 		}
@@ -1937,8 +2007,8 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 				irc->mode(chan, " -k " + bot.get(CHANOPS_TAKEOVER_KEY));
 		}
 
-		enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
-		enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
+//		enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
+//		enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
 
 		bug_var(chan);
 		bug_var(flag);

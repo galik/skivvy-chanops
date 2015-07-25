@@ -1,5 +1,5 @@
 # /*-----------------------------------------------------------------.
-# | Copyright (C) 2012 SooKee oasookee@gmail.com               |
+# | Copyright (C) 2015 SooKee oaskivvy@gmail.com                     |
 # '------------------------------------------------------------------'
 # 
 # This program is free software; you can redistribute it and/or
@@ -21,7 +21,7 @@
 # 
 # '-----------------------------------------------------------------*/
 
-AC_INIT([skivvy-chanops],[0.1],[oaskivvy@gmail.com],[skivvy-chanops])
+AC_INIT([skivvy-fserver],[0.1],[oaskivvy@gmail.com],[skivvy-fserver])
 AC_CONFIG_SRCDIR([src/plugin-chanops.cpp])
 AC_CONFIG_HEADERS([config.h])
 

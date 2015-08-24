@@ -469,7 +469,7 @@ bool ChanopsIrcBotPlugin::login(const message& msg)
 	}
 
 //	bot.fc_reply_pm(msg, "You are now logged in to " + bot.nick + ": " + oss.str());
-	bot.fc_reply_note(msg, "You are now logged in to " + bot.nick + ": " + oss.str());
+	bot.fc_reply_notice(msg, "You are now logged in to " + bot.nick + ": " + oss.str());
 
 	apply_acts(u);
 

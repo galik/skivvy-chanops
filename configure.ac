@@ -1,5 +1,5 @@
 # /*-----------------------------------------------------------------.
-# | Copyright (C) 2015 SooKee oaskivvy@gmail.com                     |
+# | Copyright (C) 2012 SooKee oasookee@gmail.com                     |
 # '------------------------------------------------------------------'
 # 
 # This program is free software; you can redistribute it and/or
@@ -21,7 +21,7 @@
 # 
 # '-----------------------------------------------------------------*/
 
-AC_INIT([skivvy-fserver],[0.1],[oaskivvy@gmail.com],[skivvy-fserver])
+AC_INIT([skivvy-chanops],[0.1],[oaskivvy@gmail.com],[skivvy-chanops])
 AC_CONFIG_SRCDIR([src/plugin-chanops.cpp])
 AC_CONFIG_HEADERS([config.h])
 
@@ -34,7 +34,7 @@ AC_PROG_CXX
 AC_PROG_INSTALL
 
 AC_LANG(C++)
-AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
+AX_CXX_COMPILE_STDCXX_14([noext],[mandatory])
 
 PKG_CHECK_MODULES([SOOKEE], [libsookee])
 PKG_CHECK_MODULES([SKIVVY], [libskivvy])

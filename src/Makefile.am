@@ -27,7 +27,7 @@ plugin_library_LTLIBRARIES =  \
 # IrcBot plugins
 skivvy_plugin_chanops_la_SOURCES = plugin-chanops.cpp
 skivvy_plugin_chanops_la_LDFLAGS = -module -avoid-version $(PLUGIN_FLAGS)
-skivvy_plugin_chanops_la_LIBADD =  $(SOOKEE_LIBS) $(SKIVVY_LIBS) -L.libs
+skivvy_plugin_chanops_la_LIBADD =  $(SOOKEE_LIBS) $(SKIVVY_LIBS) -L.libs -lstdc++fs
 
 plugin_manuals_DATA = $(top_srcdir)/docs/chanops-manual.text
 

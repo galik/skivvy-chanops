@@ -149,7 +149,7 @@ bool found_by_user(const ircuser_set& s, const str& user)
 	return std::find_if(s.begin(), s.end(), [=](const ircuser& u){ return user == u.user; }) != s.end();
 }
 
-enum ChanopsApi : unsigned
+enum ChanopsApiCall : unsigned
 {
 	is_userhost_logged_in
 	, get_userhost_username

@@ -28,7 +28,7 @@ http://www.gnu.org/licenses/gpl-2.0.html
 
 '-----------------------------------------------------------------*/
 
-#include <skivvy/plugin-chanops-old.h>
+#include <skivvy/plugin-chanops.h>
 
 #include <fstream>
 #include <sstream>

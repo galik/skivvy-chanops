@@ -28,7 +28,7 @@ http://www.gnu.org/licenses/gpl-2.0.html
 
 '-----------------------------------------------------------------*/
 
-#include <skivvy/plugin-chanops.h>
+#include <skivvy/plugin-chanops-old.h>
 
 #include <fstream>
 #include <sstream>
@@ -115,7 +115,7 @@ static uint32_t checksum(const std::string& pass)
 
 std::ostream& operator<<(std::ostream& os, const ChanopsIrcBotPlugin::user_r& ur)
 {
-	bug_func();
+//	bug_fun();
 
 	// <user>:<sum>:group1,group2
 
@@ -128,7 +128,7 @@ std::ostream& operator<<(std::ostream& os, const ChanopsIrcBotPlugin::user_r& ur
 }
 std::istream& operator>>(std::istream& is, ChanopsIrcBotPlugin::user_r& ur)
 {
-	bug_func();
+//	bug_fun();
 
 	// <user>:<sum>:group1,group2
 
@@ -221,7 +221,7 @@ bool ChanopsIrcBotPlugin::auto_login(const message& msg)
 
 bool ChanopsIrcBotPlugin::permit(const message& msg)
 {
-	BUG_COMMAND(msg);
+//	BUG_COMMAND(msg);
 
 	auto found = perms.find(msg.get_user_cmd());
 
@@ -231,6 +231,9 @@ bool ChanopsIrcBotPlugin::permit(const message& msg)
 		bot.fc_reply_pm(msg, "ERROR: This command has no permit.");
 		return false;
 	}
+
+	bug_var(found->first);
+	bug_var(found->second);
 
 	const str group = found->second;
 
@@ -243,6 +246,7 @@ bool ChanopsIrcBotPlugin::permit(const message& msg)
 	{
 		bug_var(u.user);
 		bug_var(u.userhost);
+		bug_cnt(u.groups);
 		if(u.userhost != msg.get_userhost())
 			continue;
 		in = true;
@@ -282,15 +286,15 @@ Regards,
 
 bool ChanopsIrcBotPlugin::signup(const message& msg)
 {
-	BUG_COMMAND(msg);
+//	BUG_COMMAND(msg);
 
 	std::string user, pass, pass2;
 	if(!bot.extract_params(msg, {&user, &pass, &pass2}))
 		return false;
 
-	bug("user: " << user);
-	bug("pass: " << pass);
-	bug("pass2: " << pass2);
+//	bug("user: " << user);
+//	bug("pass: " << pass);
+//	bug("pass2: " << pass2);
 
 	if(pass.size() < sizeof(uint32_t))
 		return bot.cmd_error_pm(msg, "ERROR: Password must be at least 4 characters long.");
@@ -330,15 +334,15 @@ str gen_boundary(siz len = 64)
 
 bool ChanopsIrcBotPlugin::email_signup(const message& msg)
 {
-	BUG_COMMAND(msg);
+//	BUG_COMMAND(msg);
 
 	std::string user, email, email2;
 	if(!bot.extract_params(msg, {&user, &email, &email2}))
 		return false;
 
-	bug("user  : " << user);
-	bug("email : " << email);
-	bug("email2: " << email2);
+//	bug("user  : " << user);
+//	bug("email : " << email);
+//	bug("email2: " << email2);
 
 	if(!bot.preg_match("\\w+@[^.]+\\.[\\w.]+", email, true))
 		return bot.cmd_error_pm(msg, "ERROR: Invalid email address: " + email);
@@ -488,6 +492,9 @@ bool args_check(const str_vec& args, uns size, const str& err)
 
 str_vec ChanopsIrcBotPlugin::api(unsigned call, const str_vec& args)
 {
+	bug_fun();
+	bug_var(call);
+	bug_cnt(args);
 	if(call == ChanopsApi::is_userhost_logged_in)
 	{
 		if(args_check(args, 1, "(str userhost)"))
@@ -1106,7 +1113,7 @@ bool ChanopsIrcBotPlugin::ballot(const str& chan, const str& user, const str& ol
 
 	lock_guard lock(vote_mtx);
 
-	bug_func();
+	bug_fun();
 	bug_var(chan);
 	bug_var(user);
 	bug_var(oldnick);
@@ -1178,7 +1185,7 @@ bool ChanopsIrcBotPlugin::cookie(const message& msg, int num)
 
 bool ChanopsIrcBotPlugin::initialize()
 {
-	bug_func();
+	bug_fun();
 //	std::ifstream ifs(bot.getf(BAN_FILE, BAN_FILE_DEFAULT));
 	perms =
 	{
@@ -1195,7 +1202,7 @@ bool ChanopsIrcBotPlugin::initialize()
 		, {"!cookie--", G_OPER}
 	};
 
-	// chanops.init.user: <user> <pass> <PERM> *( "," <PERM> )
+	// chanops.init.user: <user> <pass> <email> <PERM> *( "," <PERM> )
 	auto init_users = bot.get_vec("chanops.init.user");
 	bug_var(init_users.size());
 //	for(const str& init: init_users)
@@ -1222,7 +1229,7 @@ bool ChanopsIrcBotPlugin::initialize()
 
 			str group;
 			siss iss(list);
-			while(sgl(iss, group, ','))
+			while(iss >> group)
 				ur.groups.insert(trim(group));
 
 			store.set("user." + user, ur);
@@ -1309,13 +1316,22 @@ bool ChanopsIrcBotPlugin::initialize()
 	add
 	({
 		"!tell"
-		, "!tell <nick> <message> - Tell someone somthing after they next speak in channel."
+		, "!tell <nick> <message> - Tell someone something after they next speak in channel."
 		, [&](const message& msg){ tell(msg); }
 	});
 	add
 	({
+		// !ban Nick *(+<type>)
+		// if not type given uses nick-ban
+		// types:
+		//        nick - <nick>!*@*
+		//        user - *!*<user>@*
+		//        host - *!*@*<host>
 		"!ban"
-		, "!ban <nick>|<wildcard> - ban either a registered user OR a wildecard match on user prefix."
+		, "!ban Nick (+nick|+user|+host)* ban using the nick, user or host."
+		  "\n                             +nick -> <nick>!*@*"
+		  "\n                             +user -> *!*<user>@*"
+		  "\n                             +host -> *!*@*<host>"
 		, [&](const message& msg){ ban(msg); }
 	});
 	add
@@ -1360,7 +1376,7 @@ std::string ChanopsIrcBotPlugin::get_version() const { return VERSION; }
 
 void ChanopsIrcBotPlugin::exit()
 {
-//	bug_func();
+//	bug_fun();
 }
 
 // INTERFACE: IrcBotMonitor
@@ -1476,8 +1492,8 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 
 bool ChanopsIrcBotPlugin::notice_event(const message& msg)
 {
-	bug_func();
-	bug_msg(msg);
+//	bug_fun();
+//	bug_msg(msg);
 	// -----> bool skivvy::ircbot::ChanopsIrcBotPlugin::notice_event(const skivvy::ircbot::message&) [1] {8: 0x7f2784c47950}
 	//                  line: :ChanServ!ChanServ@services. NOTICE Skivvy :Flags for Galik in #autotools are +AFRefiorstv.
 	//                prefix: ChanServ!ChanServ@services.
@@ -1648,7 +1664,7 @@ bool ChanopsIrcBotPlugin::talk_event(const message& msg)
 
 bool ChanopsIrcBotPlugin::nick_event(const message& msg)
 {
-	BUG_COMMAND(msg);
+//	BUG_COMMAND(msg);
 	//---------------------------------------------------
 	//                  line: :SooKee!~SooKee@SooKee.users.quakenet.org NICK :hidingme
 	//                prefix: SooKee!~SooKee@SooKee.users.quakenet.org
@@ -1696,7 +1712,7 @@ str make_ban_mask(const str& userhost)
 
 bool ChanopsIrcBotPlugin::whoisuser_event(const message& msg)
 {
-	BUG_COMMAND(msg);
+//	BUG_COMMAND(msg);
 	// RPL_WHOISUSER
 	//---------------------------------------------------
 	//                  line: :dreamhack.se.quakenet.org 311 Skivvy SooKee ~SooKee SooKee.users.quakenet.org * :SooKee
@@ -1758,12 +1774,12 @@ bool ChanopsIrcBotPlugin::whoisuser_event(const message& msg)
 			return false;
 		}
 
-		bug_var(params[1]);
-		bug_var(params[2]);
-		bug_var(params[3]);
+//		bug_var(params[1]);
+//		bug_var(params[2]);
+//		bug_var(params[3]);
 
 		const str tb_chan = bot.get("chanops.takover.chan");
-		bug_var(tb_chan);
+//		bug_var(tb_chan);
 
 		if(!tb_chan.empty())
 		{
@@ -1799,9 +1815,9 @@ bool ChanopsIrcBotPlugin::whoisuser_event(const message& msg)
 			return false;
 		}
 
-		bug_var(params[0]); // caller (skivvy)
-		bug_var(params[1]); // nick
-		bug_var(params[2]); // chaninfo
+//		bug_var(params[0]); // caller (skivvy)
+//		bug_var(params[1]); // nick
+//		bug_var(params[2]); // chaninfo
 
 		lock_guard lock(ircusers_mtx);
 		auto found = find_by_nick(ircusers, params[1]);
@@ -1834,7 +1850,7 @@ bool ChanopsIrcBotPlugin::whoisuser_event(const message& msg)
 
 bool ChanopsIrcBotPlugin::name_event(const message& msg)
 {
-	BUG_COMMAND(msg);
+//	BUG_COMMAND(msg);
 	// RPL_NAMREPLY
 	//---------------------------------------------------
 	//                  line: :dreamhack.se.quakenet.org 353 Skivvy = #openarenahelp :Skivvy +wing_9 @ali3n +capo @Pixelized @SooKee +pet @Q
@@ -1862,7 +1878,7 @@ bool ChanopsIrcBotPlugin::name_event(const message& msg)
 	// :dreamhack.se.quakenet.org 353 Skivvy = #openarena :Skivvy +SooKee +I4C @OAbot +Light3r +pet
 
 	str chan = msg.get_chan();
-	bug_var(chan);
+//	bug_var(chan);
 
 	str tb_chan = bot.get("chanops.takover.chan");
 
@@ -1913,7 +1929,7 @@ std::future<void> fut;
 
 bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 {
-	BUG_COMMAND(msg);
+//	BUG_COMMAND(msg);
 	//---------------------------------------------------
 	//                  line: :Q!TheQBot@CServe.quakenet.org MODE #openarenahelp +v Sergei
 	//                prefix: Q!TheQBot@CServe.quakenet.org
@@ -1948,7 +1964,7 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 		user = params[2];
 
 		str tb_chan = bot.get("chanops.takover.chan");
-		bug_var(tb_chan);
+//		bug_var(tb_chan);
 
 		bool ops = false;
 		{
@@ -2007,25 +2023,23 @@ bool ChanopsIrcBotPlugin::mode_event(const message& msg)
 				irc->mode(chan, " -k " + bot.get(CHANOPS_TAKEOVER_KEY));
 		}
 
-//		enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
-//		enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
+		enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
+		enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
 
-		bug_var(chan);
-		bug_var(flag);
-		bug_var(user);
+//		bug_var(chan);
+//		bug_var(flag);
+//		bug_var(user);
 
-		str_vec v = bot.get_vec("chanops.protect");
-		bug_var(v.size());
-		for(const str& s: v)
+		for(const str& s: bot.get_vec("chanops.protect"))
 		{
-			bug_var(s);
+//			bug_var(s);
 			str chan_preg, who;
 			siss(s) >> chan_preg >> who;
-			bug_var(chan_preg);
-			bug_var(who);
+//			bug_var(chan_preg);
+//			bug_var(who);
 			if(bot.preg_match(chan_preg, chan, true) && bot.wild_match(user, who))
 			{
-				bug("match:");
+//				bug("match:");
 				if(flag == "+b")
 					flag = "-b";
 				else if(flag == "-o")
@@ -2103,7 +2117,7 @@ bool ChanopsIrcBotPlugin::kick_event(const message& msg)
 
 bool ChanopsIrcBotPlugin::join_event(const message& msg)
 {
-	BUG_COMMAND(msg);
+//	BUG_COMMAND(msg);
 	//================================
 	// JOIN: JOIN
 	//--------------------------------
@@ -2127,11 +2141,11 @@ bool ChanopsIrcBotPlugin::join_event(const message& msg)
 	// Auto OP/VOICE/MODE/bans etc..
 	if(bot.get("server.feature.chanserv", false))
 		auto_login(msg); //
-	bug_var(msg.get_chan());
-	bug_var(msg.get_userhost());
-	bug_var(msg.get_nickname());
-//	enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
-//	enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
+//	bug_var(msg.get_chan());
+//	bug_var(msg.get_userhost());
+//	bug_var(msg.get_nickname());
+	enforce_static_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
+	enforce_dynamic_rules(msg.get_chan(), msg.prefix, msg.get_nickname());
 
 	for(const str& chan: bot.get_vec(GREET_JOINERS_VEC))
 	{
@@ -2171,7 +2185,7 @@ bool ChanopsIrcBotPlugin::join_event(const message& msg)
 
 bool ChanopsIrcBotPlugin::enforce_dynamic_rules(const str& chan, const str& prefix, const str& nick)
 {
-//	bug_func();
+//	bug_fun();
 //	bug_var(chan);
 //	bug_var(prefix);
 //	bug_var(nick);
@@ -2182,7 +2196,7 @@ bool ChanopsIrcBotPlugin::enforce_dynamic_rules(const str& chan, const str& pref
 
 	str chan_pattern, who_pattern, why;
 
-	bug("kicks");
+//	bug("kicks");
 
 	// wild kicks
 	for(const str& s: store.get_vec("kick"))
@@ -2190,7 +2204,7 @@ bool ChanopsIrcBotPlugin::enforce_dynamic_rules(const str& chan, const str& pref
 			if(bot.wild_match(chan_pattern, chan, true) && bot.wild_match(who_pattern, prefix))
 				irc->kick({chan}, {nick}, why);
 
-	bug("bans");
+//	bug("bans");
 
 	// wild bans
 	why.clear();
@@ -2224,7 +2238,7 @@ bool ChanopsIrcBotPlugin::enforce_dynamic_rules(const str& chan, const str& pref
 
 bool ChanopsIrcBotPlugin::enforce_static_rules(const str& chan, const str& prefix, const str& nick)
 {
-//	bug_func();
+//	bug_fun();
 //	bug_var(chan);
 //	bug_var(prefix);
 //	bug_var(nick);

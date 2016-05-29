@@ -322,7 +322,7 @@ public:
 	virtual ~ChanopsIrcBotPlugin();
 
 	// Plugin API
-	virtual str_vec api(unsigned call, const str_vec& args = {});
+	str_vec api(unsigned call, const str_vec& args = {}) override;
 
 	enum class status
 	{
@@ -336,18 +336,18 @@ public:
 
 	// INTERFACE: BasicIrcBotPlugin
 
-	virtual bool initialize() _override_;
+	bool initialize() override;
 
 	// INTERFACE: IrcBotPlugin
 
-	virtual str get_id() const _override_;
-	virtual str get_name() const _override_;
-	virtual str get_version() const _override_;
-	virtual void exit() _override_;
+	str get_id() const override;
+	str get_name() const override;
+	str get_version() const override;
+	void exit() override;
 
 	// INTERFACE: IrcBotMonitor
 
-	virtual void event(const message& msg) _override_;
+	void event(const message& msg) override;
 };
 
 }} // skivvy::ircbot

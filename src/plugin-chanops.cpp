@@ -28,7 +28,7 @@ http://www.gnu.org/licenses/gpl-2.0.html
 
 '-----------------------------------------------------------------*/
 
-#include <skivvy/plugin-chanops.h>
+#include "include/skivvy/plugin-chanops.h"
 
 #include <fstream>
 #include <sstream>
@@ -65,6 +65,33 @@ const str CHANOPS_CHANNEL_KEY = "chanops.channel";
 
 const str IRCUSER_FILE_KEY = "chanops.ircuser.file";
 const str IRCUSER_FILE_VAL = "chanops-ircuser-db.txt"; // default
+
+const str WHOIS_RQ_DELAY_KEY = "chanops.whois.rq.delay.ms";
+const auto WHOIS_RQ_DELAY_VAL = std::chrono::milliseconds(3000); // milliseconds
+
+sis& operator>>(sis& is, std::chrono::hours& t)
+{
+	size_t n;
+	if(is >> n)
+		t = std::chrono::hours(n);
+	return is;
+}
+
+sis& operator>>(sis& is, std::chrono::seconds& t)
+{
+	size_t n;
+	if(is >> n)
+		t = std::chrono::seconds(n);
+	return is;
+}
+
+sis& operator>>(sis& is, std::chrono::milliseconds& t)
+{
+	size_t n;
+	if(is >> n)
+		t = std::chrono::milliseconds(n);
+	return is;
+}
 
 //====================================================
 // ChanopsChannel
@@ -157,26 +184,25 @@ bool ChanopsIrcBotPlugin::initialize()
 {
 	bug_fun();
 
-	// initilize one ChanopsChannel per channel
-	for(auto&& chan: bot.get_vec(CHANOPS_CHANNEL_KEY))
+	// initialize one ChanopsChannel per channel
+	for(auto const& chan: bot.get_vec(CHANOPS_CHANNEL_KEY))
 	{
-		auto found = insts.find(chan);
+		auto ret = insts.emplace(std::piecewise_construct,
+			std::forward_as_tuple(chan),
+			std::forward_as_tuple(bot, *this, chan));
 
-		if(found != insts.end())
+		if(!ret.second)
 		{
 			log("E: config has duplicate Chanops for channel: " << chan);
 			continue;
 		}
 
-		ChanopsApi::UPtr uptr = std::make_unique<ChanopsChannel>(bot, *this, chan);
-
-		if(!uptr->init())
+		if(!ret.first->second.init())
 		{
 			log("E: initializing Chanops for channel: " << chan);
+			insts.erase(ret.first);
 			continue;
 		}
-
-		insts[chan] = std::move(uptr);
 	}
 
 	add
@@ -185,7 +211,7 @@ bool ChanopsIrcBotPlugin::initialize()
 		, "!cookies <nick> Show <nick>'s cookies."
 		, [this](const message& msg)
 		{
-			try{insts.at(msg.get_chan())->cookie(msg, 0);}catch(...){}
+			try{insts.at(msg.get_chan()).cookie(msg, 0);}catch(...){}
 		}
 	});
 	add
@@ -194,7 +220,7 @@ bool ChanopsIrcBotPlugin::initialize()
 		, "!cookie++ <nick> Give <nick> a cookie."
 		, [this](const message& msg)
 		{
-			try{insts.at(msg.get_chan())->cookie(msg, 1);}catch(...){}
+			try{insts.at(msg.get_chan()).cookie(msg, 1);}catch(...){}
 		}
 	});
 	add
@@ -203,7 +229,7 @@ bool ChanopsIrcBotPlugin::initialize()
 		, "!cookie-- <nick> Take a cookie from <nick>."
 		, [this](const message& msg)
 		{
-			try{insts.at(msg.get_chan())->cookie(msg, -1);}catch(...){}
+			try{insts.at(msg.get_chan()).cookie(msg, -1);}catch(...){}
 		}
 	});
 
@@ -220,91 +246,221 @@ std::string ChanopsIrcBotPlugin::get_version() const { return VERSION; }
 void ChanopsIrcBotPlugin::exit()
 {
 	for(auto&& inst: insts)
-		inst.second->exit();
+		inst.second.exit();
+}
+
+void ChanopsIrcBotPlugin::insert_ircuser(const str& nick, const str& user, const str& host, std::time_t when)
+{
+	lock_guard lock(this->ircusers_mtx);
+
+	auto found = ircusers.find({nick, user, host, 0});
+
+	ircuser iu;
+	if(found != ircusers.end())
+		iu = *found;
+
+	iu.nick = nick;
+	iu.user = user;
+	iu.host = host;
+	iu.when = when;
+
+	ircusers.erase(iu);
+	ircusers.insert(iu);
+}
+
+void ChanopsIrcBotPlugin::save_ircusers()
+{
+	lock_guard lock(this->ircusers_mtx);
+
+	// every 10 minutes update a database
+	if(st_clk::now() > ircusers_update)
+	{
+		ircuser iu;
+		ircuser_vec iudb;
+
+		if(auto ifs = std::ifstream(bot.getf(IRCUSER_FILE_KEY, IRCUSER_FILE_VAL)))
+		{
+			bug("LOADING: iudb");
+			str line;
+			while(sgl(ifs, line))
+				if(siss(line) >> iu)
+					iudb.push_back(iu);
+			ifs.close();
+
+			bug_cnt(iudb);
+
+			for(const auto& iu: ircusers)
+				iudb.push_back(iu);
+
+			bug_cnt(iudb);
+
+			std::sort(iudb.begin(), iudb.end(), ircuser_host_user_nick_lt_when_gt());
+
+			bug_cnt(iudb);
+
+			iudb.erase(std::unique(iudb.begin(), iudb.end(), ircuser_host_user_nick_eq()), iudb.end());
+
+			bug_cnt(iudb);
+
+			if(auto ofs = std::ofstream(bot.getf(IRCUSER_FILE_KEY, IRCUSER_FILE_VAL)))
+			{
+				auto sep = "";
+				for(const ircuser& iu: iudb)
+					{ ofs << sep << (sss() << iu).str(); sep = "\n"; }
+			}
+		}
+
+		ircusers_update = st_clk::now() + std::chrono::minutes(10);
+	}
 }
 
 // INTERFACE: IrcBotMonitor
 
 void ChanopsIrcBotPlugin::event(const message& msg)
 {
-	// gather intel
-	// TODO: Select on message type? More efficient?
+	if(msg.command == PING || msg.command == PONG)
+		return;
 
+	BUG_COMMAND(msg);
+
+	//======================//
+	// DEBUG INFO GATHERING //
+	static str_set info_cmds;
+	if(!info_cmds.count(msg.command)
+	&& !msg.get_nick().empty()
+	&& !msg.get_user().empty()
+	&& !msg.get_host().empty())
+	{
+		info_cmds.insert(msg.command);
+		log("INFO GATHERING: " << msg.command << " may contain ircuser info");
+	}
+	//======================//
+
+	auto chan = msg.get_chan();
+
+	//--------------------------------------------------------
+	// Collect passive IRC user information in order to
+	// identify users as uniquely as possible
+	//--------------------------------------------------------
+	//
 	static const str_set INFO_COMMANDS
 	{
-		PRIVMSG, JOIN, PART, MODE
+		// NOTICE - only when its the bot or the server
+		  PRIVMSG, JOIN, PART, MODE, QUIT
+		, RPL_WHOISUSER
 	};
 
 	if(INFO_COMMANDS.count(msg.command))
 	{
-		str nick = msg.get_nick();
-		str user = msg.get_user();
-		str host = msg.get_host();
+		//bug("INFO_COMMAND: " << msg.command);
+		str nick;
+		str user;
+		str host;
+
+		if(msg.command == RPL_WHOISUSER)
+		{
+			//bug("INFO_COMMAND: RPL_WHOISUSER detected");
+			auto params = msg.get_params();
+
+			//bug_cnt(params);
+
+			if(params.size() < 4)
+				log("E: expected 4 parameters for: " << msg.command << ", got: " << params.size());
+			else
+			{
+				nick = params[1];
+				user = params[2];
+				host = params[3];
+			}
+		}
+		else
+		{
+			nick = msg.get_nick();
+			user = msg.get_user();
+			host = msg.get_host();
+		}
+
+		log("gathering passive info: " << nick << " " << user << " " << host);
+
+		bug_var(nick);
+		bug_var(user);
+		bug_var(host);
 
 		if(!nick.empty() && !user.empty() && !host.empty())
 		{
-			lock_guard lock(this->ircusers_mtx);
-
-			auto found = ircusers.find({nick, user, host, 0});
-
-			ircuser iu;
-			if(found != ircusers.end())
-				iu = *found;
-
-			iu.nick = nick;
-			iu.user = user;
-			iu.host = host;
-			iu.when = msg.when;
-
-			ircusers.erase(iu);
-			ircusers.insert(iu);
-
-			// every 10 minutes update a database
-			if(st_clk::now() > ircusers_update)
-			{
-				ircuser_vec iudb;
-
-				if(auto ifs = std::ifstream(bot.getf(IRCUSER_FILE_KEY, IRCUSER_FILE_VAL)))
-				{
-					str line;
-					while(sgl(ifs, line))
-						if(siss(line) >> iu)
-							iudb.push_back(iu);
-					ifs.close();
-
-					for(const auto& iu: ircusers)
-						iudb.push_back(iu);
-
-					std::sort(iudb.begin(), iudb.end(), ircuser_nickuserhost_lt());
-
-					iudb.erase(std::unique(iudb.begin(), iudb.end(), ircuser_nickuserhost_lt()), iudb.end());
-
-					if(auto ofs = std::ofstream(bot.getf(IRCUSER_FILE_KEY, IRCUSER_FILE_VAL)))
-					{
-						auto sep = "";
-						for(const ircuser& iu: iudb)
-							{ ofs << sep << (sss() << iu).str(); sep = "\n"; }
-					}
-				}
-
-				ircusers_update = st_clk::now() + std::chrono::minutes(10);
-			}
+			insert_ircuser(nick, user, host, msg.when);
+			save_ircusers();
 		}
 	}
+	//
+	//--------------------------------------------------------
 
-	auto chan = msg.get_chan();
+	//--------------------------------------------------------
+	// Actively solicit information when joining a channel
+	//--------------------------------------------------------
+	//
+	// When joining a channel nicks are sent to the joiner
+	// by means of RPL_NAMREPLY
+	//
+	if(msg.command == RPL_NAMREPLY)
+	{
+		str nick;
+		str_set whoiss;
+		siss iss(msg.get_trailing());
 
+		while(iss >> nick)
+		{
+			log("soliciting info for: " << chan << " " << nick);
+			if(nick.empty())
+				continue;
+
+			if(nick[0] == '+' || nick[0] == '@')
+				nick.erase(0, 1);
+
+			// TODO: Do I need to sent my nick to discover
+			// if I have ops or not?
+			if(nick != bot.nick)
+				whoiss.insert(nick);
+		}
+
+		// try these one by one bcus not working
+		// in batch mode on freenode for some reason
+
+		const auto delay = bot.get(WHOIS_RQ_DELAY_KEY, WHOIS_RQ_DELAY_VAL);
+
+		if(!whoiss.empty()) std::thread([this,delay,whoiss = std::move(whoiss)]
+		{
+			for(auto& nick: whoiss)
+			{
+				irc->whois({nick});
+				std::this_thread::sleep_for(delay);
+			}
+		}).detach();
+
+		// WHOIS
+		// RPL_WHOISUSER     :quakenet.org 311 Skivvy SooKee ~SooKee SooKee.users.quakenet.org * :SooKee
+		// RPL_WHOISCHANNELS :quakenet.org 319 Skivvy SooKee :@#skivvy @#openarenahelp +#openarena @#omfg
+		// RPL_WHOISSERVER   :quakenet.org 312 Skivvy SooKee *.quakenet.org :QuakeNet IRC Server
+		// UD                :quakenet.org 330 Skivvy SooKee SooKee :is authed as
+		// RPL_ENDOFWHOIS    :quakenet.org 318 Skivvy SooKee :End of /WHOIS list.
+	}
+	//
+	//--------------------------------------------------------
+
+	//--------------------------------------------------------
+	// Dispatch channel events to the relevant channel
+	// monitor
+	//--------------------------------------------------------
+	//
 	auto found = insts.find(chan);
 
 	if(found != insts.end())
 	{
-		found->second->event(msg);
+		found->second.event(msg);
 		return;
 	}
-
-	// non channel specific
-	log("Unknown channel");
-	BUG_COMMAND(msg);
+	//
+	//--------------------------------------------------------
 }
 
 }} // sookee::chanops

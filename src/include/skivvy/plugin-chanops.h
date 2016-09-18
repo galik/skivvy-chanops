@@ -42,56 +42,6 @@ namespace skivvy { namespace ircbot {
 using namespace sookee::types;
 using namespace skivvy::utils;
 
-class ChanopsIrcBotPlugin;
-
-class ChanopsApi
-{
-public:
-	using UPtr = std::unique_ptr<ChanopsApi>;
-
-	virtual ~ChanopsApi() {}
-
-	virtual bool init() = 0;
-	virtual void exit() = 0;
-	virtual void cookie(const message& msg, int num) = 0;
-
-	// Delegated Plugin API
-	virtual void event(const message& msg) = 0;
-};
-
-class ChanopsChannel
-: public ChanopsApi
-{
-private:
-	IrcBot& bot;
-	ChanopsIrcBotPlugin& plugin;
-	str channel;
-
-	Store::UPtr store;
-
-	/**
-	 * Is the bot in the channel this object
-	 * monitors?
-	 * @return
-	 */
-	bool in_channel()
-	{
-		return bot.chans.count(channel);
-	}
-
-public:
-	ChanopsChannel(IrcBot& bot, ChanopsIrcBotPlugin& plugin, const str& channel);
-
-	// ChanopsApi
-
-	bool init() override;
-	void exit() override;
-	void cookie(const message& msg, int num) override;
-
-	// Delegated Plugin API
-	void event(const message& msg) override;
-};
-
 // ---------------------------------------------
 // IRC user info
 // ---------------------------------------------
@@ -100,8 +50,13 @@ struct ircuser
 	str nick;
 	str user;
 	str host;
-//	str flags;
 	std::time_t when; // last seen
+
+	friend sos& operator<<(sos& ss, const ircuser& iu)
+	{
+		ss << iu.when << ' ' << iu.host << ' ' << iu.user << ' ' << iu.nick;
+		return ss;
+	}
 
 	friend sss& operator<<(sss& ss, const ircuser& iu)
 	{
@@ -126,29 +81,134 @@ struct ircuser
 	}
 };
 
-struct ircuser_userhost_lt
-{ bool operator()(const ircuser& iu1, const ircuser& iu2) const
-		{ return iu1.user + iu1.host < iu2.user + iu2.host; }; };
+struct ircuser_host_user_lt
+{
+	bool operator()(const ircuser& iu1, const ircuser& iu2) const
+	{
+		if(iu1.host != iu2.host)
+			return iu1.host < iu2.host;
+		return iu1.user < iu2.user;
+	}
+};
 
-struct ircuser_nickuserhost_lt
-{ bool operator()(const ircuser& iu1, const ircuser& iu2) const
-	{ return iu1.nick + iu1.user + iu1.host == iu2.nick + iu2.user + iu2.host; }; };
+struct ircuser_host_user_nick_lt_when_gt
+{
+	bool operator()(const ircuser& iu1, const ircuser& iu2) const
+	{
+		if(iu1.host != iu2.host)
+			return iu1.host < iu2.host;
+		if(iu1.user != iu2.user)
+			return iu1.user < iu2.user;
+		if(iu1.nick != iu2.nick)
+			return iu1.nick < iu2.nick;
+		return iu1.when > iu2.when;
+	}
+};
 
-using ircuser_set = std::set<ircuser, ircuser_userhost_lt>;
+struct ircuser_host_user_nick_eq
+{
+	bool operator()(const ircuser& iu1, const ircuser& iu2) const
+	{
+		return iu1.host == iu2.host && iu1.user == iu2.user && iu1.nick == iu2.nick;
+	}
+};
+
+struct ircuser_host_user_eq
+{
+	bool operator()(const ircuser& iu1, const ircuser& iu2) const
+	{
+		return iu1.host == iu2.host && iu1.user == iu2.user;
+	}
+};
+
+using ircuser_set = std::set<ircuser, ircuser_host_user_lt>;
 using ircuser_vec = std::vector<ircuser>;
 
 // ---------------------------------------------
+
+// ---------------------------------------------
+// Role based permissions
+// ---------------------------------------------
+
+class permission
+{
+public:
+	using value_type = size_t;
+
+private:
+	value_type id;
+	explicit permission(value_type id): id(id) {}
+
+public:
+	permission() = delete;
+
+	friend std::istream& operator>>(std::istream& i, permission& p)
+	{
+		return i >> p.id;
+	}
+
+	friend std::ostream& operator>>(std::ostream& o, permission const& p)
+	{
+		return o << p.id;
+	}
+};
+
+class Role
+{
+	std::string title;
+	std::set<permission> permissions;
+};
+
+// ---------------------------------------------
+
+class ChanopsIrcBotPlugin;
+
+class ChanopsChannel
+{
+private:
+	IrcBot& bot;
+	ChanopsIrcBotPlugin& plugin;
+	str channel;
+
+	Store::UPtr store;
+
+	/**
+	 * Is the bot in the channel this object
+	 * monitors?
+	 * @return
+	 */
+	bool in_channel()
+	{
+		return bot.chans.count(channel);
+	}
+
+public:
+	ChanopsChannel(IrcBot& bot, ChanopsIrcBotPlugin& plugin, const str& channel);
+
+	// Api
+
+	bool init();
+	void exit();
+	void cookie(const message& msg, int num);
+
+	// Delegated Plugin API
+	void event(const message& msg);
+};
 
 class ChanopsIrcBotPlugin final
 : public BasicIrcBotPlugin
 , public IrcBotMonitor
 {
-	std::map<str, ChanopsApi::UPtr> insts;
+	std::map<str, ChanopsChannel> insts;
 
-	// intel
+	// IRC users info -------------------------------
 	std::mutex ircusers_mtx;
 	ircuser_set ircusers;
 	st_time_point ircusers_update = st_clk::now();
+
+	void insert_ircuser(const str& nick, const str& user, const str& host, std::time_t when);
+	void save_ircusers();
+	// -----------------------------------------------
 
 public:
 	ChanopsIrcBotPlugin(IrcBot& bot);

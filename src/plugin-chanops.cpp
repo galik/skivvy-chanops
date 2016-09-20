@@ -46,7 +46,9 @@ http://www.gnu.org/licenses/gpl-2.0.html
 #include <skivvy/irc.h>
 #include <skivvy/utils.h>
 
-namespace skivvy { namespace ircbot {
+namespace skivvy {
+namespace ircbot {
+namespace chanops {
 
 IRC_BOT_PLUGIN(ChanopsIrcBotPlugin);
 PLUGIN_INFO("chanops", "Channel Operations", "2.0-alpha");
@@ -67,7 +69,7 @@ const str IRCUSER_FILE_KEY = "chanops.ircuser.file";
 const str IRCUSER_FILE_VAL = "chanops-ircuser-db.txt"; // default
 
 const str WHOIS_RQ_DELAY_KEY = "chanops.whois.rq.delay.ms";
-const auto WHOIS_RQ_DELAY_VAL = std::chrono::milliseconds(3000); // milliseconds
+const siz WHOIS_RQ_DELAY_VAL = 3000; // milliseconds
 
 sis& operator>>(sis& is, std::chrono::hours& t)
 {
@@ -426,7 +428,7 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 		// try these one by one bcus not working
 		// in batch mode on freenode for some reason
 
-		const auto delay = bot.get(WHOIS_RQ_DELAY_KEY, WHOIS_RQ_DELAY_VAL);
+		const auto delay = std::chrono::milliseconds(bot.get(WHOIS_RQ_DELAY_KEY, WHOIS_RQ_DELAY_VAL));
 
 		if(!whoiss.empty()) std::thread([this,delay,whoiss = std::move(whoiss)]
 		{
@@ -463,5 +465,6 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 	//--------------------------------------------------------
 }
 
-}} // sookee::chanops
-
+} // chanops
+} // ircbot
+} // skivvy

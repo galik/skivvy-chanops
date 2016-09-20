@@ -1,5 +1,5 @@
-#ifndef SOOKEE_IRCBOT_CHANOPS_H
-#define SOOKEE_IRCBOT_CHANOPS_H
+#ifndef SKIVVY_IRCBOT_CHANOPS_H
+#define SKIVVY_IRCBOT_CHANOPS_H
 /*
  * ircbot-chanops.h
  *
@@ -37,7 +37,9 @@ http://www.gnu.org/licenses/gpl-2.0.html
 #include <skivvy/ircbot.h>
 #include <skivvy/store.h>
 
-namespace skivvy { namespace ircbot {
+namespace skivvy {
+namespace ircbot {
+namespace chanops {
 
 using namespace sookee::types;
 using namespace skivvy::utils;
@@ -233,6 +235,8 @@ public:
 	void event(const message& msg) override;
 };
 
-}} // skivvy::ircbot
+} // chanops
+} // ircbot
+} // skivvy
 
-#endif // SOOKEE_IRCBOT_CHANOPS_H
+#endif // SKIVVY_IRCBOT_CHANOPS_H

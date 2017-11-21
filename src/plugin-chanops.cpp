@@ -35,16 +35,13 @@ http://www.gnu.org/licenses/gpl-2.0.html
 #include <chrono>
 #include <algorithm>
 
-#include <sookee/str.h>
-#include <sookee/types/basic.h>
-#include <sookee/types/vec.h>
-
 #include <skivvy/logrep.h>
-#include <sookee/stl.h>
-#include <sookee/ios.h>
 #include <skivvy/irc-constants.h>
 #include <skivvy/irc.h>
 #include <skivvy/utils.h>
+
+#include <hol/string_utils.h>
+#include <hol/simple_logger.h>
 
 namespace skivvy {
 namespace ircbot {
@@ -53,12 +50,18 @@ namespace chanops {
 IRC_BOT_PLUGIN(ChanopsIrcBotPlugin);
 PLUGIN_INFO("chanops", "Channel Operations", "2.0-alpha");
 
+namespace hol {
+	using namespace header_only_library::string_utils;
+}
+
 using namespace skivvy;
-using namespace sookee;
+//using namespace sookee;
 using namespace skivvy::irc;
-using namespace sookee::types;
+//using namespace sookee::types;
 using namespace skivvy::utils;
-using namespace sookee::utils;
+//using namespace sookee::utils;
+
+using namespace header_only_library::simple_logger;
 
 const str STORE_FILE_KEY = "chanops.store.file";
 const str STORE_FILE_VAL = "chanops-store.txt"; // default
@@ -73,7 +76,7 @@ const siz WHOIS_RQ_DELAY_VAL = 3000; // milliseconds
 
 sis& operator>>(sis& is, std::chrono::hours& t)
 {
-	size_t n;
+	siz n;
 	if(is >> n)
 		t = std::chrono::hours(n);
 	return is;
@@ -81,7 +84,7 @@ sis& operator>>(sis& is, std::chrono::hours& t)
 
 sis& operator>>(sis& is, std::chrono::seconds& t)
 {
-	size_t n;
+	siz n;
 	if(is >> n)
 		t = std::chrono::seconds(n);
 	return is;
@@ -89,7 +92,7 @@ sis& operator>>(sis& is, std::chrono::seconds& t)
 
 sis& operator>>(sis& is, std::chrono::milliseconds& t)
 {
-	size_t n;
+	siz n;
 	if(is >> n)
 		t = std::chrono::milliseconds(n);
 	return is;
@@ -106,7 +109,7 @@ ChanopsChannel::ChanopsChannel(IrcBot& bot, ChanopsIrcBotPlugin& plugin, const s
 
 str channel_to_filename(str channel)
 {
-	return replace(replace(channel, "#", "H-"), "@", "A-");
+	return hol::replace_all_mute(hol::replace_all_mute(channel, "#", "H-"), "@", "A-");
 }
 
 bool ChanopsChannel::init()
@@ -117,7 +120,7 @@ bool ChanopsChannel::init()
 	fs::create_directories(cfg_dir, ec);
 	if(ec)
 	{
-		log("E: " << ec.message());
+		LOG::E << ec.message();
 		return false;
 	}
 	auto store_name = cfg_dir + '/' + bot.get(STORE_FILE_KEY, STORE_FILE_VAL);
@@ -195,13 +198,13 @@ bool ChanopsIrcBotPlugin::initialize()
 
 		if(!ret.second)
 		{
-			log("E: config has duplicate Chanops for channel: " << chan);
+			LOG::E << "config has duplicate Chanops for channel: " << chan;
 			continue;
 		}
 
 		if(!ret.first->second.init())
 		{
-			log("E: initializing Chanops for channel: " << chan);
+			LOG::E << "E: initializing Chanops for channel: " << chan;
 			insts.erase(ret.first);
 			continue;
 		}
@@ -334,7 +337,7 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 	&& !msg.get_host().empty())
 	{
 		info_cmds.insert(msg.command);
-		log("INFO GATHERING: " << msg.command << " may contain ircuser info");
+		LOG::D << "INFO GATHERING: " << msg.command << " may contain ircuser info";
 	}
 	//======================//
 
@@ -367,7 +370,7 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 			//bug_cnt(params);
 
 			if(params.size() < 4)
-				log("E: expected 4 parameters for: " << msg.command << ", got: " << params.size());
+				LOG::E << "expected 4 parameters for: " << msg.command << ", got: " << params.size();
 			else
 			{
 				nick = params[1];
@@ -382,7 +385,7 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 			host = msg.get_host();
 		}
 
-		log("gathering passive info: " << nick << " " << user << " " << host);
+		LOG::D << "gathering passive info: " << nick << " " << user << " " << host;
 
 		bug_var(nick);
 		bug_var(user);
@@ -412,7 +415,7 @@ void ChanopsIrcBotPlugin::event(const message& msg)
 
 		while(iss >> nick)
 		{
-			log("soliciting info for: " << chan << " " << nick);
+			LOG::D << "soliciting info for: " << chan << " " << nick;
 			if(nick.empty())
 				continue;
 
